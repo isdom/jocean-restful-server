@@ -1,0 +1,605 @@
+/**
+ *
+ */
+package org.jocean.restful;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+
+import com.jcraft.jzlib.Inflater;
+import com.jcraft.jzlib.InflaterInputStream;
+import io.netty.handler.codec.http.Cookie;
+import io.netty.handler.codec.http.CookieDecoder;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.QueryStringDecoder;
+
+import java.beans.PropertyEditor;
+import java.beans.PropertyEditorManager;
+import java.io.InputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.ws.rs.BeanParam;
+import javax.ws.rs.CookieParam;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
+import javax.ws.rs.HttpMethod;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.QueryParam;
+
+import org.jocean.event.api.BizStep;
+import org.jocean.event.api.EventReceiverSource;
+import org.jocean.event.api.annotation.OnEvent;
+import org.jocean.event.api.internal.DefaultInvoker;
+import org.jocean.event.api.internal.EventInvoker;
+import org.jocean.idiom.ExceptionUtils;
+import org.jocean.idiom.InterfaceSource;
+import org.jocean.idiom.Pair;
+import org.jocean.idiom.ReflectUtils;
+import org.jocean.idiom.block.Blob;
+import org.jocean.idiom.block.BlockUtils;
+import org.jocean.idiom.block.PooledBytesOutputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.BeanFactoryAware;
+
+import com.alibaba.fastjson.JSON;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+
+/**
+ * @author isdom
+ */
+public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAware {
+
+    private static final Logger LOG
+            = LoggerFactory.getLogger(RegistrarImpl.class);
+
+    public RegistrarImpl(final EventReceiverSource source) {
+        this._receiverSource = source;
+    }
+
+    @Override
+    public void setClasses(final Set<Class<?>> classes) {
+        this._resources.clear();
+        for (Class<?> cls : classes) {
+            this.register(cls);
+        }
+    }
+
+    @Override
+    public RegistrarImpl register(final Class<?> cls) {
+
+        final Class<?> flowCls = checkNotNull(cls);
+
+        checkArgument(InterfaceSource.class.isAssignableFrom(flowCls),
+                "flow class(%s) must implements InterfaceSource interface", flowCls);
+
+        checkArgument(OutputSource.class.isAssignableFrom(flowCls),
+                "flow class(%s) must implements OutputSource interface", flowCls);
+
+        final String flowPath =
+                checkNotNull(checkNotNull(flowCls.getAnnotation(Path.class),
+                                "flow class(%s) must be annotation by Path", flowCls).value(),
+                        "flow class(%s)'s Path must have value setted", flowCls
+                );
+
+        final Context flowCtx = new Context(flowCls);
+
+        final int initMethodCount =
+                addPathsByAnnotatedMethods(flowPath, flowCtx, GET.class)
+                        + addPathsByAnnotatedMethods(flowPath, flowCtx, POST.class)
+                        + addPathsByAnnotatedMethods(flowPath, flowCtx, PUT.class)
+                        + addPathsByAnnotatedMethods(flowPath, flowCtx, DELETE.class);
+
+        checkState((initMethodCount > 0),
+                "can not find ANY init method annotation by GET/PUT/POST/DELETE for type(%s)", flowCls);
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("register flowCtx({}) for path:{}", flowCtx, flowPath);
+        }
+        return this;
+    }
+
+    @Override
+    public Pair<Object, String> buildFlowMatch(
+            final String httpMethod,
+            final String uri,
+            final HttpRequest request,
+            final Blob blob,
+            final String contentType,
+            final  PooledBytesOutputStream output) throws Exception {
+
+        final QueryStringDecoder decoder = new QueryStringDecoder(uri);
+
+        final String rawPath = decoder.path();
+
+        final Pair<Context, Map<String, String>> ctxAndParamValues =
+                findContextByMethodAndPath(httpMethod, rawPath);
+
+        if (null == ctxAndParamValues) {
+            return null;
+        }
+
+        final Context ctx = ctxAndParamValues.getFirst();
+        final Map<String, String> pathParamValues = ctxAndParamValues.getSecond();
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Registrar: found flow class {} match path {}", ctx._cls, rawPath);
+        }
+
+        final Object flow = checkNotNull(this._beanFactory.getBean(ctx._cls),
+                "can not build flow for type(%s)", ctx._cls);
+        if (flow instanceof RawAware) {
+            //copy netty httphead to httpclient httphead
+            HashMap<String, String> headers = new HashMap<String, String>();
+            List<Map.Entry<String, String>> entries =  request.headers().entries();
+            for(Map.Entry<String, String> mapEntry:entries){
+                headers.put(mapEntry.getKey(),mapEntry.getValue());
+            }
+            ((RawAware) flow).setUrl(uri);//防止post的方式带?的方式url被截取
+            ((RawAware) flow).setRaws(decodeContentOf(blob, contentType, true, output));
+            ((RawAware) flow).setHttpHeaders(headers);
+
+        }
+        assignAllParams(ctx._field2params, flow, ctx._selfParams,
+                pathParamValues, decoder, request,  decodeContentOf(blob, contentType, false, output));
+
+        final EventInvoker invoker = DefaultInvoker.of(flow, ctx._init);
+
+        final String event = invoker.getBindedEvent();
+
+        this._receiverSource.create(flow,
+                new BizStep("INIT").handler(invoker).freeze());
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Registrar: create flow({}) with init method({}), init event({})",
+                    flow, ctx._init.getName(), event);
+        }
+
+        return Pair.of(flow, event);
+    }
+
+    private byte[] decodeContentOf(final Blob blob, final String contentType,boolean isRaw, final  PooledBytesOutputStream  output)
+            throws Exception {
+        if (null == blob ) {
+            return null;
+        }else if(isRaw){
+            InputStream is = null;
+            try {
+                is = blob.genInputStream();
+                if (null != is) {
+                    final byte[] bytes = new byte[is.available()];
+                    is.read(bytes);
+                    return bytes;
+                }
+            } finally {
+                if (null != is) {
+                    try {
+                        is.close();
+                    } catch (Throwable e) {
+                    }
+                }
+            }
+        }
+        else if ("application/cjson".equals(contentType)) {
+            final InputStream is = blob.genInputStream();
+            InflaterInputStream zis = null;
+            final PooledBytesOutputStream decompressOut = new PooledBytesOutputStream(output.pool());
+
+            try {
+                zis = new InflaterInputStream(is, new Inflater());
+                BlockUtils.inputStream2OutputStream(zis, decompressOut);
+            } finally {
+                try {
+                    if (null != is) {
+                        is.close();
+                    }
+                } catch (Throwable e) {
+                }
+                try {
+                    if (null != zis) {
+                        zis.close();
+                    }
+                } catch (Throwable e) {
+                }
+            }
+
+            final Blob decompressBlob = decompressOut.drainToBlob();
+            InputStream decompressIs = null;
+
+            try {
+                if (null != decompressBlob) {
+                    decompressIs = decompressBlob.genInputStream();
+                    if (null != decompressIs) {
+                        final byte[] bytes = new byte[decompressIs.available()];
+                        decompressIs.read(bytes);
+                        return bytes;
+                    }
+                }
+            } finally {
+                if (null != decompressBlob) {
+                    decompressBlob.release();
+                }
+                if (null != decompressIs) {
+                    try {
+                        decompressIs.close();
+                    } catch (Throwable e) {
+                    }
+                }
+            }
+        } else if ("application/json".equals(contentType)) {
+            InputStream is = null;
+            try {
+                is = blob.genInputStream();
+                if (null != is) {
+                    final byte[] bytes = new byte[is.available()];
+                    is.read(bytes);
+                    return bytes;
+                }
+            } finally {
+                if (null != is) {
+                    try {
+                        is.close();
+                    } catch (Throwable e) {
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void assignAllParams(
+            final Map<Field, Params> field2params,
+            final Object obj,
+            final Params params,
+            final Map<String, String> pathParamValues,
+            final QueryStringDecoder decoder,
+            final HttpRequest request,
+            final byte[] bytes) {
+        if (null != params._pathParams && null != pathParamValues) {
+            for (Field field : params._pathParams) {
+                injectPathParamValue(pathParamValues.get(field.getAnnotation(PathParam.class).value()), obj,
+                        field);
+            }
+        }
+
+        if (null != params._queryParams) {
+            for (Field field : params._queryParams) {
+                injectParamValue(decoder.parameters().get(
+                                field.getAnnotation(QueryParam.class).value()), obj,
+                        field
+                );
+            }
+        }
+
+        if (null != params._headerParams) {
+            for (Field field : params._headerParams) {
+                injectParamValue(request.headers().getAll(
+                                field.getAnnotation(HeaderParam.class).value()), obj,
+                        field
+                );
+            }
+        }
+
+        if (null != params._cookieParams) {
+            final String rawCookie = request.headers().get(HttpHeaders.Names.COOKIE);
+            if (null != rawCookie) {
+                final Set<Cookie> cookies = CookieDecoder.decode(rawCookie);
+                if (!cookies.isEmpty()) {
+                    for (Field field : params._cookieParams) {
+                        final Cookie nettyCookie = findCookieNamed(
+                                cookies, field.getAnnotation(CookieParam.class).value());
+                        if (null != nettyCookie) {
+                            injectCookieParamValue(obj, field, nettyCookie);
+                        }
+
+                    }
+                }
+            }
+        }
+
+        if (null != params._beanParams) {
+            for (Field beanField : params._beanParams) {
+                try {
+                    final Object bean = createObjectBy(bytes, beanField);
+                    if (null != bean) {
+                        beanField.set(obj, bean);
+                        final Params beanParams = field2params.get(beanField);
+                        if (null != beanParams) {
+                            assignAllParams(field2params, bean, beanParams,
+                                    pathParamValues, decoder, request, bytes);
+                        }
+                    }
+                } catch (Exception e) {
+                    LOG.warn("exception when set bean value for field({}), detail:{}",
+                            beanField, ExceptionUtils.exception2detail(e));
+                }
+            }
+        }
+    }
+
+    /**
+     * @param bytes
+     * @param beanField
+     * @return
+     */
+    private static Object createObjectBy(final byte[] bytes, final Field beanField) {
+        if (null != bytes) {
+            return JSON.parseObject(bytes, beanField.getType());
+        } else {
+            try {
+                return beanField.getType().newInstance();
+            } catch (Throwable e) {
+                LOG.warn("exception when create instance for type:{}, detail:{}",
+                        beanField.getType(), ExceptionUtils.exception2detail(e));
+                return null;
+            }
+        }
+    }
+
+    private Pair<Context, Map<String, String>> findContextByMethodAndPath(
+            final String httpMethod, final String rawPath) {
+
+        // try direct path match
+        final Context ctx = this._resources.get(httpMethod + ":" + rawPath);
+        if (null != ctx) {
+            return Pair.of(ctx, null);
+        } else {
+            return matchPathWithParams(httpMethod, rawPath);
+        }
+    }
+
+    private Pair<Context, Map<String, String>> matchPathWithParams(
+            final String httpMethod, final String rawPath) {
+        Collection<Pair<PathMatcher, Context>> matchers =
+                this._pathmatchers.get(httpMethod);
+        if (null != matchers) {
+            for (Pair<PathMatcher, Context> matcher : matchers) {
+                final Map<String, String> paramValues = matcher.getFirst().match(rawPath);
+                if (null != paramValues) {
+                    return Pair.of(matcher.getSecond(), paramValues);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void injectCookieParamValue(
+            final Object flow,
+            final Field field,
+            final Cookie nettyCookie) {
+        if (field.getType().equals(javax.ws.rs.core.Cookie.class)) {
+            try {
+                field.set(flow, new javax.ws.rs.core.Cookie(nettyCookie.getName(),
+                        nettyCookie.getValue(), nettyCookie.getPath(),
+                        nettyCookie.getDomain(), nettyCookie.getVersion()));
+            } catch (Exception e) {
+                LOG.warn("exception when set flow({}).{} CookieParam({}), detail:{} ",
+                        flow, field.getName(), nettyCookie, ExceptionUtils.exception2detail(e));
+            }
+        }
+    }
+
+    private static Cookie findCookieNamed(final Iterable<Cookie> cookies, final String name) {
+        for (Cookie cookie : cookies) {
+            if (cookie.getName().equals(name)) {
+                return cookie;
+            }
+        }
+        return null;
+    }
+
+    private static void injectPathParamValue(
+            final String value,
+            final Object obj,
+            final Field field) {
+        injectValueToField(value, obj, field);
+    }
+
+    private static void injectParamValue(
+            final List<String> values,
+            final Object obj,
+            final Field field) {
+        if (null != values && values.size() > 0) {
+            injectValueToField(values.get(0), obj, field);
+        }
+    }
+
+    /**
+     * @param value
+     * @param obj
+     * @param field
+     */
+    private static void injectValueToField(
+            final String value,
+            final Object obj,
+            final Field field) {
+        if (null != value) {
+            try {
+                // just check String field
+                if (field.getType().equals(String.class)) {
+                    field.set(obj, value);
+                } else {
+                    final PropertyEditor editor = PropertyEditorManager.findEditor(field.getType());
+                    if (null != editor) {
+                        editor.setAsText(value);
+                        field.set(obj, editor.getValue());
+                    }
+                }
+            } catch (Exception e) {
+                LOG.warn("exception when set obj({}).{} with value({}), detail:{} ",
+                        obj, field.getName(), value, ExceptionUtils.exception2detail(e));
+            }
+        }
+    }
+
+    private int addPathsByAnnotatedMethods(
+            final String flowPath,
+            final Context flowCtx,
+            final Class<? extends Annotation> httpMethodAnnotation) {
+        final Method[] initMethods =
+                ReflectUtils.getAnnotationMethodsOf(flowCtx._cls, httpMethodAnnotation);
+
+        if (initMethods.length > 0) {
+
+            for (Method init : initMethods) {
+                checkNotNull(init.getAnnotation(OnEvent.class),
+                        "flow class(%s)'s method(%s) must be annotation with OnEvent", flowCtx._cls, init.getName());
+
+                final String methodPath = genMethodPathOf(flowPath, init);
+                registerPathOfContext(httpMethodAnnotation, methodPath,
+                        new Context(flowCtx, init));
+            }
+        }
+
+        return initMethods.length;
+    }
+
+    private void registerPathOfContext(
+            final Class<? extends Annotation> httpMethodAnnotation,
+            final String methodPath,
+            final Context context) {
+        final String httpMethod = checkNotNull(httpMethodAnnotation.getAnnotation(HttpMethod.class),
+                "(%s) must annotated by HttpMethod", httpMethodAnnotation).value();
+
+        final PathMatcher pathMatcher = PathMatcher.create(methodPath);
+        if (null == pathMatcher) {
+            //  Path without parameters
+            this._resources.put(httpMethod + ":" + methodPath, context);
+
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("register httpMethod {} for Path {} with context {}",
+                        httpMethod, methodPath, context);
+            }
+        } else {
+            // Path !WITH! parameters
+            this._pathmatchers.put(httpMethod, Pair.of(pathMatcher, context));
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("register httpMethod {} for !Parametered! Path {} with matcher {} & context {}",
+                        httpMethod, methodPath, pathMatcher, context);
+            }
+        }
+    }
+
+    private String genMethodPathOf(final String flowPath, final Method method) {
+        final Path methodPath = method.getAnnotation(Path.class);
+
+        if (null != methodPath) {
+            return flowPath + methodPath.value();
+        } else {
+            return flowPath;
+        }
+    }
+
+    @Override
+    public void setBeanFactory(final BeanFactory beanFactory) throws BeansException {
+        this._beanFactory = beanFactory;
+    }
+
+    private static final class Params {
+        private final Field[] _pathParams;
+        private final Field[] _queryParams;
+        private final Field[] _headerParams;
+        private final Field[] _cookieParams;
+        private final Field[] _beanParams;
+
+        Params(final Field[] pathParams,
+               final Field[] queryParams, final Field[] headerParams,
+               final Field[] cookieParams, final Field[] beanParams) {
+            this._pathParams = pathParams;
+            this._queryParams = queryParams;
+            this._headerParams = headerParams;
+            this._cookieParams = cookieParams;
+            this._beanParams = beanParams;
+        }
+
+        @Override
+        public String toString() {
+            return "Params [_pathParams=" + Arrays.toString(_pathParams)
+                    + ", _queryParams=" + Arrays.toString(_queryParams)
+                    + ", _headerParams=" + Arrays.toString(_headerParams)
+                    + ", _cookieParams=" + Arrays.toString(_cookieParams)
+                    + ", _beanParams=" + Arrays.toString(_beanParams) + "]";
+        }
+    }
+
+    private static void fetchAllParams(final Field owner, final Class<?> cls, final Map<Field, Params> field2params) {
+        final Field[] beanFields = ReflectUtils.getAnnotationFieldsOf(cls, BeanParam.class);
+        field2params.put(owner,
+                new Params(
+                        ReflectUtils.getAnnotationFieldsOf(cls, PathParam.class),
+                        ReflectUtils.getAnnotationFieldsOf(cls, QueryParam.class),
+                        ReflectUtils.getAnnotationFieldsOf(cls, HeaderParam.class),
+                        ReflectUtils.getAnnotationFieldsOf(cls, CookieParam.class),
+                        beanFields)
+        );
+
+        for (Field field : beanFields) {
+            fetchAllParams(field, field.getType(), field2params);
+        }
+    }
+
+    private static class Context {
+
+        Context(final Context ctx,
+                final Method init
+        ) {
+            this._cls = ctx._cls;
+            this._init = init;
+            this._selfParams = ctx._selfParams;
+            this._field2params = new HashMap<Field, Params>(ctx._field2params);
+        }
+
+        Context(final Class<?> cls) {
+            this._cls = cls;
+            this._init = null;
+            final Field[] beanFields = ReflectUtils.getAnnotationFieldsOf(cls, BeanParam.class);
+            this._selfParams = new Params(
+                    ReflectUtils.getAnnotationFieldsOf(cls, PathParam.class),
+                    ReflectUtils.getAnnotationFieldsOf(cls, QueryParam.class),
+                    ReflectUtils.getAnnotationFieldsOf(cls, HeaderParam.class),
+                    ReflectUtils.getAnnotationFieldsOf(cls, CookieParam.class),
+                    beanFields);
+            this._field2params = new HashMap<Field, Params>();
+            for (Field field : beanFields) {
+                fetchAllParams(field, field.getType(), this._field2params);
+            }
+        }
+
+        private final Class<?> _cls;
+        private final Method _init;
+        private final Params _selfParams;
+        private final Map<Field, Params> _field2params;
+
+        @Override
+        public String toString() {
+            return "Context [_cls=" + _cls + ", _init=" + _init
+                    + ", _selfParams=" + _selfParams + ", _field2params="
+                    + _field2params + "]";
+        }
+    }
+
+    private final Map<String, Context> _resources =
+            new HashMap<String, Context>();
+
+    private final Multimap<String, Pair<PathMatcher, Context>> _pathmatchers = ArrayListMultimap.create();
+
+    private BeanFactory _beanFactory;
+    private final EventReceiverSource _receiverSource;
+}

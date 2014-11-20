@@ -21,6 +21,7 @@ import org.jocean.idiom.block.PooledBytesOutputStream;
 import org.jocean.idiom.pool.BytesPool;
 import org.jocean.json.FastJSONProvider;
 import org.jocean.json.JSONProvider;
+import org.jocean.json.JacksonProvider;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
 import org.jocean.restful.Registrar;
@@ -379,5 +380,9 @@ public class RestfulHttpServerHandler extends SimpleChannelInboundHandler<Object
 
     public void setJsonProvider(JSONProvider jsonProvider) {
         this.jsonProvider = jsonProvider;
+    }
+
+    public void setUseJackson(boolean useJackson) {
+        this.jsonProvider = useJackson ? new JacksonProvider() : new FastJSONProvider();
     }
 }

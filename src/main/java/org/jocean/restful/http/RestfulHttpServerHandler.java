@@ -1,7 +1,5 @@
 package org.jocean.restful.http;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.jcraft.jzlib.Inflater;
 import com.jcraft.jzlib.InflaterInputStream;
 import io.netty.buffer.ByteBuf;
@@ -21,6 +19,8 @@ import org.jocean.idiom.block.Blob;
 import org.jocean.idiom.block.BlockUtils;
 import org.jocean.idiom.block.PooledBytesOutputStream;
 import org.jocean.idiom.pool.BytesPool;
+import org.jocean.json.FastJSONProvider;
+import org.jocean.json.JSONProvider;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
 import org.jocean.restful.Registrar;
@@ -53,6 +53,7 @@ public class RestfulHttpServerHandler extends SimpleChannelInboundHandler<Object
     private HttpRequest _request;
     private final AtomicReference<Detachable> _detachable =
             new AtomicReference<Detachable>(null);
+    private JSONProvider jsonProvider = new FastJSONProvider();
 
     @Override
     public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
@@ -223,7 +224,7 @@ public class RestfulHttpServerHandler extends SimpleChannelInboundHandler<Object
                     if (representation instanceof CustomHttpResponse) {
                         writeAndFlushHttpResponse((CustomHttpResponse) representation, ctx);
                     } else {
-                        String responseJson = JSON.toJSONString(representation, SerializerFeature.PrettyFormat);
+                        String responseJson = jsonProvider.toJSONString(representation);
                         if (LOG.isDebugEnabled()) {
                             LOG.debug("send resp:{}", responseJson);
                         }
@@ -374,5 +375,9 @@ public class RestfulHttpServerHandler extends SimpleChannelInboundHandler<Object
                 // just ignore
             }
         }
+    }
+
+    public void setJsonProvider(JSONProvider jsonProvider) {
+        this.jsonProvider = jsonProvider;
     }
 }

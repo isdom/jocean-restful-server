@@ -12,6 +12,7 @@ dependencies {
     
     compile "javax.ws.rs:javax.ws.rs-api:2.0"
     compile "com.alibaba:fastjson:1.1.39"
+    compile "com.fasterxml.jackson.core:jackson-databind:2.4.3"
     compile "org.springframework:spring-context:4.0.3.RELEASE"
     compile "com.google.guava:guava:16.0.1"
     compile "io.netty:netty-all:4.0.23.Final"

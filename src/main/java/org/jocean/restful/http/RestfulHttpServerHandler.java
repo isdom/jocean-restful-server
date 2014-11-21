@@ -125,7 +125,7 @@ public class RestfulHttpServerHandler extends SimpleChannelInboundHandler<Object
             throws Exception {
         if (null == blob || null == contentType) {
             return null;
-        } else if ("application/cjson".equals(contentType)) {
+        } else if (contentType.startsWith("application/cjson")) {
             final InputStream is = blob.genInputStream();
             InflaterInputStream zis = null;
             final PooledBytesOutputStream decompressOut = new PooledBytesOutputStream(this._output.pool());
@@ -171,7 +171,7 @@ public class RestfulHttpServerHandler extends SimpleChannelInboundHandler<Object
                     }
                 }
             }
-        } else if ("application/json".equals(contentType)) {
+        } else if (contentType.startsWith("application/json")) {
             InputStream is = null;
             try {
                 is = blob.genInputStream();

@@ -177,7 +177,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
 
     private byte[] decodeContentOf(final Blob blob, final String contentType,boolean isRaw, final  PooledBytesOutputStream  output)
             throws Exception {
-        if (null == blob ) {
+        if (null == blob || contentType == null) {
             return null;
         }else if(isRaw){
             InputStream is = null;
@@ -197,7 +197,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
                 }
             }
         }
-        else if ("application/cjson".equals(contentType)) {
+        else if (contentType.startsWith("application/cjson")) {
             final InputStream is = blob.genInputStream();
             InflaterInputStream zis = null;
             final PooledBytesOutputStream decompressOut = new PooledBytesOutputStream(output.pool());
@@ -243,7 +243,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
                     }
                 }
             }
-        } else if ("application/json".equals(contentType)) {
+        } else if (contentType.startsWith("application/json")) {
             InputStream is = null;
             try {
                 is = blob.genInputStream();

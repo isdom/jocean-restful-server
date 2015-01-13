@@ -13,7 +13,11 @@ public class JacksonProvider implements JSONProvider {
     @Override
     public String toJSONString(Object object) {
         try {
-            return mapper.writeValueAsString(object);
+            JsonViewable jsonViewable = object.getClass().getAnnotation(JsonViewable.class);
+            if (jsonViewable == null) {
+                return mapper.writeValueAsString(object);
+            }
+            return mapper.writerWithView(jsonViewable.value()).writeValueAsString(object);
         } catch (JsonProcessingException e) {
             LOG.error("", e);
         }

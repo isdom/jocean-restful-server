@@ -232,6 +232,21 @@ public class RestfulHttpServerHandler extends SimpleChannelInboundHandler<Object
                         writeAndFlushResponse(responseJson, ctx);
                     }
                 }
+
+                @Override
+                public void output(final Object representation, final String outerName) {
+                    safeDetachCurrentFlow();
+                    if (representation instanceof CustomHttpResponse) {
+                        writeAndFlushHttpResponse((CustomHttpResponse) representation, ctx);
+                    } else {
+                        final String responseJson = 
+                                outerName + "(" + jsonProvider.toJSONString(representation) + ")";
+                        if (LOG.isDebugEnabled()) {
+                            LOG.debug("send resp:{}", responseJson);
+                        }
+                        writeAndFlushResponse(responseJson, ctx);
+                    }
+                }
             });
         } catch (Exception e) {
             LOG.warn("exception when call flow({})'s setOutputReactor, detail:{}",

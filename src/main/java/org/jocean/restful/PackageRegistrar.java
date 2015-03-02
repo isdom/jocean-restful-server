@@ -6,13 +6,13 @@ import java.util.Set;
 import javax.ws.rs.Path;
 
 import org.jocean.event.api.AbstractFlow;
-import org.jocean.event.api.EventReceiverSource;
+import org.jocean.event.api.EventEngine;
 import org.jocean.ext.util.PackageUtils;
 
 public class PackageRegistrar extends RegistrarImpl {
 
-    public PackageRegistrar(final EventReceiverSource source) {
-        super(source);
+    public PackageRegistrar(final EventEngine engine) {
+        super(engine);
     }
 
     public String getScanPackage() {

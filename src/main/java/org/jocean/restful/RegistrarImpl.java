@@ -6,9 +6,6 @@ package org.jocean.restful;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
-
-import com.jcraft.jzlib.Inflater;
-import com.jcraft.jzlib.InflaterInputStream;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.CookieDecoder;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -41,7 +38,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
 
 import org.jocean.event.api.BizStep;
-import org.jocean.event.api.EventReceiverSource;
+import org.jocean.event.api.EventEngine;
 import org.jocean.event.api.annotation.OnEvent;
 import org.jocean.event.api.internal.DefaultInvoker;
 import org.jocean.event.api.internal.EventInvoker;
@@ -61,6 +58,8 @@ import org.springframework.beans.factory.BeanFactoryAware;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import com.jcraft.jzlib.Inflater;
+import com.jcraft.jzlib.InflaterInputStream;
 
 /**
  * @author isdom
@@ -70,8 +69,8 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
     private static final Logger LOG
             = LoggerFactory.getLogger(RegistrarImpl.class);
 
-    public RegistrarImpl(final EventReceiverSource source) {
-        this._receiverSource = source;
+    public RegistrarImpl(final EventEngine source) {
+        this._engine = source;
     }
 
     @Override
@@ -164,7 +163,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
 
         final String event = invoker.getBindedEvent();
 
-        this._receiverSource.create(flow,
+        this._engine.create(flow,
                 new BizStep("INIT").handler(invoker).freeze());
 
         if (LOG.isDebugEnabled()) {
@@ -601,5 +600,5 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
     private final Multimap<String, Pair<PathMatcher, Context>> _pathmatchers = ArrayListMultimap.create();
 
     private BeanFactory _beanFactory;
-    private final EventReceiverSource _receiverSource;
+    private final EventEngine _engine;
 }

@@ -12,8 +12,8 @@ import net.sf.ehcache.Cache;
 import net.sf.ehcache.Element;
 
 import org.jocean.event.api.AbstractUnhandleAware;
+import org.jocean.event.api.EventEngine;
 import org.jocean.event.api.EventReceiver;
-import org.jocean.event.api.EventReceiverSource;
 import org.jocean.event.api.FlowLifecycleListener;
 import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
@@ -31,10 +31,10 @@ public class CacheAgentImpl<KEY, CTX, VALUE> implements FetchAgent<KEY, CTX, VAL
             LoggerFactory.getLogger(CacheAgentImpl.class);
 
     public CacheAgentImpl(final FetchAgent<KEY, CTX, VALUE> fetchAgent, final Cache cache, 
-            final EventReceiverSource source) {
+            final EventEngine engine) {
         this._agent = fetchAgent;
         this._cache = cache;
-        this._source = source;
+        this._engine = engine;
     }
     
     @SuppressWarnings("unchecked")
@@ -124,11 +124,11 @@ public class CacheAgentImpl<KEY, CTX, VALUE> implements FetchAgent<KEY, CTX, VAL
                     throws Exception {
                 _flows.remove(key);
             }});
-        this._source.create(flow, flow.WAIT);
+        this._engine.create(flow, flow.WAIT);
         return flow;
     }
 
-    private EventReceiverSource _source;
+    private EventEngine _engine;
     private final FetchAgent<KEY, CTX, VALUE> _agent;
     private final Cache _cache;
     private final ConcurrentMap<KEY, FetchAndCacheFlow<KEY, CTX, VALUE>> _flows = 

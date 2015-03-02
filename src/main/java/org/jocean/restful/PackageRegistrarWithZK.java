@@ -1,19 +1,25 @@
 package org.jocean.restful;
 
-import org.jocean.event.api.EventReceiverSource;
-import org.jocean.ext.util.PackageUtils;
-import org.jocean.idiom.InterfaceSource;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.ws.rs.Path;
-import java.util.*;
+
+import org.jocean.event.api.EventEngine;
+import org.jocean.ext.util.PackageUtils;
+import org.jocean.idiom.InterfaceSource;
 
 public class PackageRegistrarWithZK extends RegistrarImpl {
 
     private String scanPackage;
     private Map<String, Object> zkNodeData = new HashMap<>();
 
-    public PackageRegistrarWithZK(final EventReceiverSource source) {
-        super(source);
+    public PackageRegistrarWithZK(final EventEngine engine) {
+        super(engine);
     }
 
     public String getScanPackage() {

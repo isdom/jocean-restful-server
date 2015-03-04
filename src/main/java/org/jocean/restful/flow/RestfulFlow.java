@@ -157,10 +157,8 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         return bytesCopied;
     }
     
-    public final BizStep INIT = new BizStep("restful.INIT") {
-        @OnEvent(event = "start")
-        private BizStep start() throws Exception {
-        	return _requestWrapper.recvFullContentThenGoto(
+    public BizStep initBizStep() {
+    	return _requestWrapper.recvFullContentThenGoto(
         			"restful.RECVCONTENT",
         			null,
         			new Runnable() {
@@ -170,10 +168,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
 						}},
         			WAIT_FOR_TASK,
         			ONDETACH);
-        }
     }
-    .handler(handlersOf(ONDETACH))
-    .freeze();
 
     private final BizStep WAIT_FOR_TASK = new BizStep("restful.WAIT_FOR_TASK") {
         @OnEvent(event = "complete")

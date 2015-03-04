@@ -25,9 +25,9 @@ public abstract class RestfulAgent implements ServerAgent {
     public ServerTask createServerTask(
             final ChannelHandlerContext channelCtx, 
             final HttpRequest httpRequest) {
+    	final RestfulFlow flow = createRestfulFlow().attach(channelCtx, httpRequest);
         return EventUtils.buildInterfaceAdapter(ServerTask.class,  
-            this._engine.createFromInnerState(
-                createRestfulFlow().attach(channelCtx, httpRequest).INIT));
+            this._engine.create(flow, flow.initBizStep()));
     }
     
     protected abstract RestfulFlow createRestfulFlow();

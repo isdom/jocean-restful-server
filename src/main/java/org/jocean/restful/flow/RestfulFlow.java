@@ -10,20 +10,16 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.CharsetUtil;
-import io.netty.util.ReferenceCountUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,7 +28,9 @@ import org.jocean.event.api.AbstractFlow;
 import org.jocean.event.api.BizStep;
 import org.jocean.event.api.EventReceiver;
 import org.jocean.event.api.FlowLifecycleListener;
+import org.jocean.event.api.FlowStateChangedListener;
 import org.jocean.event.api.annotation.OnEvent;
+import org.jocean.http.HttpRequestWrapper;
 import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
@@ -59,7 +57,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
     
     @Override
     public String toString() {
-        return "RestfulFlow [httpRequest=" + _httpRequest + "]";
+        return "RestfulFlow [httpRequest=" + _requestWrapper + "]";
     }
 
     private static final FlowLifecycleListener<RestfulFlow> LIFECYCLE_LISTENER = 
@@ -78,10 +76,42 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
     };
     
     private void destructor() throws Exception {
-        ReferenceCountUtil.safeRelease(this._httpRequest);
+    	this._requestWrapper.clear();
         this._output.close();
     }
     
+    private void whenStateChanged(
+    		final BizStep prev,
+			final BizStep next, 
+			final String causeEvent, 
+			final Object[] causeArgs)
+			throws Exception {
+    	if (LOG.isDebugEnabled()) {
+    		LOG.debug("onStateChanged: prev:{} next:{} event:{}", prev, next, causeEvent);
+    	}
+		if (null==next && "detach".equals(causeEvent)) {
+			// means flow end by detach event
+            safeDetachTask();
+            LOG.warn("SOURCE_CANCELED\ncost:[{}]s\nrequest:[{}]",
+                    -1, _requestWrapper);
+            setEndReason("restful.SOURCE_CANCELED");
+		}
+	}
+    
+    private static final FlowStateChangedListener<RestfulFlow, BizStep> STATECHANGED_LISTENER = 
+		new FlowStateChangedListener<RestfulFlow, BizStep>() {
+		@Override
+		public void onStateChanged(
+				final RestfulFlow flow, 
+				final BizStep prev,
+				final BizStep next, 
+				final String causeEvent, 
+				final Object[] causeArgs)
+				throws Exception {
+			flow.whenStateChanged(prev, next, causeEvent, causeArgs);
+		}
+	};
+	
     public RestfulFlow(
             final Registrar<?>  registrar,
             final BytesPool     bytesPool,
@@ -90,36 +120,22 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         this._jsonProvider = jsonProvider;
         this._output = new PooledBytesOutputStream(bytesPool);
         addFlowLifecycleListener(LIFECYCLE_LISTENER);
+        addFlowStateChangedListener(STATECHANGED_LISTENER);
     }
     
     public RestfulFlow attach(
             final ChannelHandlerContext channelCtx,
             final HttpRequest httpRequest) {
-        this._httpRequest = ReferenceCountUtil.retain(httpRequest);
+        this._requestWrapper.setHttpRequest(httpRequest);
         this._channelCtx = channelCtx;
-        updateRecvHttpRequestState(this._httpRequest);
-        byteBuf2OutputStream(this._httpRequest, this._output);
         return this;
     }
     
-    private final class ONDETACH {
-        public ONDETACH(final Runnable ifDetached) {
-            this._ifDetached = ifDetached;
-        }
-        
+    private final Object ONDETACH = new Object() {
         @OnEvent(event = "detach")
         private BizStep onDetach() throws Exception {
             if (LOG.isDebugEnabled()) {
-                LOG.debug("business progress canceled");
-            }
-            if (null != this._ifDetached) {
-                try {
-                    this._ifDetached.run();
-                }
-                catch(Throwable e) {
-                    LOG.warn("exception when invoke {}, detail: {}", 
-                            this._ifDetached, ExceptionUtils.exception2detail(e));
-                }
+                LOG.debug("business for channel:{}/uri:{} progress canceled", _channelCtx.channel());
             }
             try {
                 _channelCtx.close();
@@ -130,17 +146,13 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
             }
             return null;
         }
-        
-        private final Runnable _ifDetached;
-    }
+    };
 
-    private static long byteBuf2OutputStream(final HttpObject httpObj, final PooledBytesOutputStream os) {
+    private static long byteBuf2OutputStream(final ByteBuf content, final PooledBytesOutputStream os) {
         long bytesCopied = 0;
-        if (httpObj instanceof HttpContent) {
-            try (InputStream is = new ByteBufInputStream(((HttpContent)httpObj).content())) {
-                bytesCopied = BlockUtils.inputStream2OutputStream(is, os);
-            } catch (IOException e) {
-        }
+        try (InputStream is = new ByteBufInputStream(content)) {
+            bytesCopied = BlockUtils.inputStream2OutputStream(is, os);
+        } catch (IOException e) {
         }
         return bytesCopied;
     }
@@ -148,37 +160,19 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
     public final BizStep INIT = new BizStep("restful.INIT") {
         @OnEvent(event = "start")
         private BizStep start() throws Exception {
-
-            if (isRecvHttpRequestComplete()) {
-                createAndInvokeRestfulBusiness();
-                return WAIT_FOR_TASK;
-            }
-            else {
-                return  currentEventHandler();
-            }
-        }
-        
-        @OnEvent(event = "onHttpContent")
-        private BizStep recvHttpContent(final HttpContent httpContent) throws Exception {
-            byteBuf2OutputStream(httpContent, _output);
-            
-            updateRecvHttpRequestState(httpContent);
-            if (isRecvHttpRequestComplete()) {
-                createAndInvokeRestfulBusiness();
-                return WAIT_FOR_TASK;
-            }
-            else {
-                return currentEventHandler();
-            }
+        	return _requestWrapper.recvFullContentThenGoto(
+        			"restful.RECVCONTENT",
+        			null,
+        			new Runnable() {
+						@Override
+						public void run() {
+							createAndInvokeRestfulBusiness();
+						}},
+        			WAIT_FOR_TASK,
+        			ONDETACH);
         }
     }
-    .handler(handlersOf(new ONDETACH(new Runnable() {
-        @Override
-        public void run() {
-            LOG.warn("SOURCE_CANCELED\ncost:[{}]s\nrequest:[{}]",
-                    -1, _httpRequest);
-            setEndReason("restful.SOURCE_CANCELED");
-        }})))
+    .handler(handlersOf(ONDETACH))
     .freeze();
 
     private final BizStep WAIT_FOR_TASK = new BizStep("restful.WAIT_FOR_TASK") {
@@ -188,14 +182,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
             return null;
         }
     }
-    .handler(handlersOf(new ONDETACH(new Runnable() {
-        @Override
-        public void run() {
-            safeDetachTask();
-            LOG.warn("SOURCE_CANCELED\ncost:[{}]s\nrequest:[{}]",
-                    -1, _httpRequest);
-            setEndReason("restful.SOURCE_CANCELED");
-        }})))
+    .handler(handlersOf(ONDETACH))
     .freeze();
     
     private void notifyTaskComplete() {
@@ -205,25 +192,22 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         }
     }
 
-    private void updateRecvHttpRequestState(final HttpObject httpObject) {
-        if ( (httpObject instanceof FullHttpRequest) 
-            || (httpObject instanceof LastHttpContent)) {
-            this._recvHttpRequestComplete = true;
+    private void createAndInvokeRestfulBusiness() {
+        
+        final String contentType = this._requestWrapper.request().headers().get(HttpHeaders.Names.CONTENT_TYPE);
+        final ByteBuf content = this._requestWrapper.retainFullContent();
+        try {
+	        byteBuf2OutputStream(content, this._output);
+        } finally {
+        	content.release();
         }
-    }
-    
-    private boolean isRecvHttpRequestComplete() {
-        return this._recvHttpRequestComplete;
-    }
-
-    private void createAndInvokeRestfulBusiness() throws Exception {
         
-        final String contentType = this._httpRequest.headers().get(HttpHeaders.Names.CONTENT_TYPE);
-        
-        //final byte[] bytes = decodeContentOf(blob, contentType);
         try (final Blob blob = this._output.drainToBlob()) {
             invokeFlowOrResponseNoContent(blob, contentType, this._output);
-        }
+        } catch (Exception e) {
+			LOG.warn("exception when invokeFlowOrResponseNoContent for channel:{}, detail:{}",
+					_channelCtx.channel(), ExceptionUtils.exception2detail(e));
+		}
     }
     
     private void safeDetachTask() {
@@ -247,11 +231,12 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
             final Blob blob,
             final String contentType,
             final PooledBytesOutputStream output) throws Exception {
+    	final HttpRequest request = this._requestWrapper.request();
         final Pair<Object, String> flowAndEvent =
                 this._registrar.buildFlowMatch(
-                        this._httpRequest.getMethod().name(), 
-                        this._httpRequest.getUri(), 
-                        this._httpRequest, 
+                		request.getMethod().name(), 
+                		request.getUri(), 
+                		request, 
                         blob, 
                         contentType, 
                         output);
@@ -302,7 +287,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
 
     private boolean writeAndFlushResponse(final String content) {
         // Decide whether to close the connection or not.
-        boolean keepAlive = isKeepAlive(this._httpRequest);
+        boolean keepAlive = isKeepAlive(this._requestWrapper.request());
         // Build the response object.
         FullHttpResponse response = new DefaultFullHttpResponse(
                 HTTP_1_1, (null != content ? OK : NO_CONTENT),
@@ -349,10 +334,9 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         return keepAlive;
     }
 
-    private HttpRequest _httpRequest;
     private ChannelHandlerContext _channelCtx;
     
-    private boolean _recvHttpRequestComplete = false;
+    private final HttpRequestWrapper _requestWrapper = new HttpRequestWrapper();
     
     private final Registrar<?> _registrar;
     private final PooledBytesOutputStream _output;

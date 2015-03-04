@@ -6,16 +6,11 @@ package org.jocean.restful.http;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
-import io.netty.handler.ssl.SslHandler;
-
-import javax.net.ssl.SSLEngine;
 
 import org.jocean.idiom.pool.BytesPool;
 import org.jocean.restful.Registrar;
-import org.jocean.restful.ssl.SecureChatSslContextFactory;
 
 /**
  * @author isdom
@@ -36,9 +31,9 @@ public class RestfulHttpServerInitializer extends ChannelInitializer<SocketChann
 
         if ( this._enableSSL ) {
         // Uncomment the following line if you want HTTPS
-            final SSLEngine engine = SecureChatSslContextFactory.getServerContext().createSSLEngine();
-            engine.setUseClientMode(false);
-            p.addLast("ssl", new SslHandler(engine));
+//            final SSLEngine engine = J2SESslContextFactory.getServerContext().createSSLEngine();
+//            engine.setUseClientMode(false);
+//            p.addLast("ssl", new SslHandler(engine));
         }
 
         p.addLast("decoder", new HttpRequestDecoder());

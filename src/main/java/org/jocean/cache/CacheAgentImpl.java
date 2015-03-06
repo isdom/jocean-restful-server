@@ -114,17 +114,17 @@ public class CacheAgentImpl<KEY, CTX, VALUE> implements FetchAgent<KEY, CTX, VAL
         if ( null != previousFlow ) {
             return previousFlow;
         }
-        flow.addFlowLifecycleListener(new FlowLifecycleListener<FetchAndCacheFlow<KEY, CTX, VALUE>>() {
+        flow.addFlowLifecycleListener(new FlowLifecycleListener() {
             @Override
-            public void afterEventReceiverCreated(final FetchAndCacheFlow<KEY, CTX, VALUE> flow,
+            public void afterEventReceiverCreated(
                     final EventReceiver receiver) throws Exception {
             }
             @Override
-            public void afterFlowDestroy(final FetchAndCacheFlow<KEY, CTX, VALUE> flow)
+            public void afterFlowDestroy()
                     throws Exception {
                 _flows.remove(key);
             }});
-        this._engine.create(flow, flow.WAIT);
+        this._engine.create(flow.toString(), flow.WAIT, flow);
         return flow;
     }
 

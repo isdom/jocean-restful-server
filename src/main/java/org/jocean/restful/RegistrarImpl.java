@@ -163,8 +163,9 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
 
         final String event = invoker.getBindedEvent();
 
-        this._engine.create(flow,
-                new BizStep("INIT").handler(invoker).freeze());
+        this._engine.create(flow.toString(),
+                new BizStep("INIT").handler(invoker).freeze(),
+                flow);
 
         if (LOG.isDebugEnabled()) {
             LOG.debug("Registrar: create flow({}) with init method({}), init event({})",

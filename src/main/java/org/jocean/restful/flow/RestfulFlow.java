@@ -60,58 +60,11 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         return "RestfulFlow [httpRequest=" + _requestWrapper + "]";
     }
 
-    private static final FlowLifecycleListener<RestfulFlow> LIFECYCLE_LISTENER = 
-            new FlowLifecycleListener<RestfulFlow>() {
-        @Override
-        public void afterEventReceiverCreated(
-                final RestfulFlow flow, final EventReceiver receiver)
-                throws Exception {
-            receiver.acceptEvent("start");
-        }
-        @Override
-        public void afterFlowDestroy(final RestfulFlow flow)
-                throws Exception {
-            flow.destructor();
-        }
-    };
-    
     private void destructor() throws Exception {
     	this._requestWrapper.clear();
         this._output.close();
     }
     
-    private void whenStateChanged(
-    		final BizStep prev,
-			final BizStep next, 
-			final String causeEvent, 
-			final Object[] causeArgs)
-			throws Exception {
-    	if (LOG.isDebugEnabled()) {
-    		LOG.debug("onStateChanged: prev:{} next:{} event:{}", prev, next, causeEvent);
-    	}
-		if (null==next && "detach".equals(causeEvent)) {
-			// means flow end by detach event
-            safeDetachTask();
-            LOG.warn("SOURCE_CANCELED\ncost:[{}]s\nrequest:[{}]",
-                    -1, _requestWrapper);
-            setEndReason("restful.SOURCE_CANCELED");
-		}
-	}
-    
-    private static final FlowStateChangedListener<RestfulFlow, BizStep> STATECHANGED_LISTENER = 
-		new FlowStateChangedListener<RestfulFlow, BizStep>() {
-		@Override
-		public void onStateChanged(
-				final RestfulFlow flow, 
-				final BizStep prev,
-				final BizStep next, 
-				final String causeEvent, 
-				final Object[] causeArgs)
-				throws Exception {
-			flow.whenStateChanged(prev, next, causeEvent, causeArgs);
-		}
-	};
-	
     public RestfulFlow(
             final Registrar<?>  registrar,
             final BytesPool     bytesPool,
@@ -119,8 +72,38 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         this._registrar = registrar;
         this._jsonProvider = jsonProvider;
         this._output = new PooledBytesOutputStream(bytesPool);
-        addFlowLifecycleListener(LIFECYCLE_LISTENER);
-        addFlowStateChangedListener(STATECHANGED_LISTENER);
+        this.addFlowLifecycleListener(
+    		new FlowLifecycleListener() {
+				@Override
+	            public void afterEventReceiverCreated(final EventReceiver receiver)
+	                    throws Exception {
+	                receiver.acceptEvent("start");
+	            }
+	            @Override
+	            public void afterFlowDestroy()
+	                    throws Exception {
+	                destructor();
+	            }});
+        this.addFlowStateChangedListener(
+        		new FlowStateChangedListener<BizStep>() {
+    		@Override
+    		public void onStateChanged(
+    				final BizStep prev,
+    				final BizStep next, 
+    				final String causeEvent, 
+    				final Object[] causeArgs)
+    				throws Exception {
+    	    	if (LOG.isDebugEnabled()) {
+    	    		LOG.debug("onStateChanged: prev:{} next:{} event:{}", prev, next, causeEvent);
+    	    	}
+    			if (null==next && "detach".equals(causeEvent)) {
+    				// means flow end by detach event
+    	            safeDetachTask();
+    	            LOG.warn("SOURCE_CANCELED\ncost:[{}]s\nrequest:[{}]",
+    	                    -1, _requestWrapper);
+    	            setEndReason("restful.SOURCE_CANCELED");
+    			}
+    		}});
     }
     
     public RestfulFlow attach(

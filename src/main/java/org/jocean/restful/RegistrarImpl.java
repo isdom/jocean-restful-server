@@ -6,6 +6,9 @@ package org.jocean.restful;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
+import io.netty.buffer.EmptyByteBuf;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.CookieDecoder;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -14,7 +17,7 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 
 import java.beans.PropertyEditor;
 import java.beans.PropertyEditorManager;
-import java.io.InputStream;
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -42,13 +45,11 @@ import org.jocean.event.api.EventEngine;
 import org.jocean.event.api.annotation.OnEvent;
 import org.jocean.event.api.internal.DefaultInvoker;
 import org.jocean.event.api.internal.EventInvoker;
+import org.jocean.http.HttpRequestWrapper;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.ReflectUtils;
-import org.jocean.idiom.block.Blob;
-import org.jocean.idiom.block.BlockUtils;
-import org.jocean.idiom.block.PooledBytesOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
@@ -58,8 +59,7 @@ import org.springframework.beans.factory.BeanFactoryAware;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import com.jcraft.jzlib.Inflater;
-import com.jcraft.jzlib.InflaterInputStream;
+import com.google.common.io.ByteStreams;
 
 /**
  * @author isdom
@@ -119,10 +119,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
     public Pair<Object, String> buildFlowMatch(
             final String httpMethod,
             final String uri,
-            final HttpRequest request,
-            final Blob blob,
-            final String contentType,
-            final  PooledBytesOutputStream output) throws Exception {
+            final HttpRequestWrapper wrapper) throws Exception {
 
         final QueryStringDecoder decoder = new QueryStringDecoder(uri);
 
@@ -144,20 +141,11 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
 
         final Object flow = checkNotNull(this._beanFactory.getBean(ctx._cls),
                 "can not build flow for type(%s)", ctx._cls);
-        if (flow instanceof RawAware) {
-            //copy netty httphead to httpclient httphead
-            HashMap<String, String> headers = new HashMap<String, String>();
-            List<Map.Entry<String, String>> entries =  request.headers().entries();
-            for(Map.Entry<String, String> mapEntry:entries){
-                headers.put(mapEntry.getKey(),mapEntry.getValue());
-            }
-            ((RawAware) flow).setUrl(uri);//防止post的方式带?的方式url被截取
-            ((RawAware) flow).setRaws(decodeContentOf(blob, contentType, true, output));
-            ((RawAware) flow).setHttpHeaders(headers);
-
-        }
         assignAllParams(ctx._field2params, flow, ctx._selfParams,
-                pathParamValues, decoder, request,  decodeContentOf(blob, contentType, false, output));
+                pathParamValues, decoder, wrapper.request(), 
+                decodeContent(wrapper)
+                // decodeContentOf(blob, contentType, false, output)
+                );
 
         final EventInvoker invoker = DefaultInvoker.of(flow, ctx._init);
 
@@ -175,6 +163,24 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
         return Pair.of(flow, event);
     }
 
+    private byte[] decodeContent(final HttpRequestWrapper wrapper) {
+        final ByteBuf content = wrapper.retainFullContent();
+        try {
+            if (content instanceof EmptyByteBuf) {
+                return null;
+            }
+            return ByteStreams.toByteArray(new ByteBufInputStream(content.slice()));
+        } catch (IOException e) {
+            LOG.warn("exception when decodeContent, detail:{}", 
+                    ExceptionUtils.exception2detail(e));
+            return null;
+        }
+        finally {
+            content.release();
+        }
+    }
+    
+    /*
     private byte[] decodeContentOf(final Blob blob, final String contentType,boolean isRaw, final  PooledBytesOutputStream  output)
             throws Exception {
         if (null == blob || contentType == null) {
@@ -263,6 +269,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
         }
         return null;
     }
+    */
 
     private static void assignAllParams(
             final Map<Field, Params> field2params,

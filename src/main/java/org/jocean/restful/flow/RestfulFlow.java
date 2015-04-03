@@ -10,8 +10,6 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -20,9 +18,6 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.util.CharsetUtil;
-
-import java.io.IOException;
-import java.io.InputStream;
 
 import org.jocean.event.api.AbstractFlow;
 import org.jocean.event.api.BizStep;
@@ -35,10 +30,6 @@ import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
-import org.jocean.idiom.block.Blob;
-import org.jocean.idiom.block.BlockUtils;
-import org.jocean.idiom.block.PooledBytesOutputStream;
-import org.jocean.idiom.pool.BytesPool;
 import org.jocean.json.JSONProvider;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
@@ -62,16 +53,13 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
 
     private void destructor() throws Exception {
     	this._requestWrapper.clear();
-        this._output.close();
     }
     
     public RestfulFlow(
             final Registrar<?>  registrar,
-            final BytesPool     bytesPool,
             final JSONProvider  jsonProvider) {
         this._registrar = registrar;
         this._jsonProvider = jsonProvider;
-        this._output = new PooledBytesOutputStream(bytesPool);
         this.addFlowLifecycleListener(
     		new FlowLifecycleListener() {
 				@Override
@@ -131,15 +119,6 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         }
     };
 
-    private static long byteBuf2OutputStream(final ByteBuf content, final PooledBytesOutputStream os) {
-        long bytesCopied = 0;
-        try (InputStream is = new ByteBufInputStream(content)) {
-            bytesCopied = BlockUtils.inputStream2OutputStream(is, os);
-        } catch (IOException e) {
-        }
-        return bytesCopied;
-    }
-    
     public BizStep initBizStep() {
     	return _requestWrapper.recvFullContentThenGoto(
         			"restful.RECVCONTENT",
@@ -147,7 +126,12 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         			new Runnable() {
 						@Override
 						public void run() {
-							createAndInvokeRestfulBusiness();
+							try {
+                                createAndInvokeRestfulBusiness();
+                            } catch (Exception e) {
+                                LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
+                                        ExceptionUtils.exception2detail(e));
+                            }
 						}},
         			WAIT_FOR_TASK,
         			ONDETACH);
@@ -170,54 +154,13 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         }
     }
 
-    private void createAndInvokeRestfulBusiness() {
-        
-        final String contentType = this._requestWrapper.request().headers().get(HttpHeaders.Names.CONTENT_TYPE);
-        final ByteBuf content = this._requestWrapper.retainFullContent();
-        try {
-	        byteBuf2OutputStream(content, this._output);
-        } finally {
-        	content.release();
-        }
-        
-        try (final Blob blob = this._output.drainToBlob()) {
-            invokeFlowOrResponseNoContent(blob, contentType, this._output);
-        } catch (Exception e) {
-			LOG.warn("exception when invokeFlowOrResponseNoContent for channel:{}, detail:{}",
-					_channelCtx.channel(), ExceptionUtils.exception2detail(e));
-		}
-    }
-    
-    private void safeDetachTask() {
-        if (null != this._task) {
-            try {
-                this._task.detach();
-            } catch (Exception e) {
-                LOG.warn("exception when detach current flow, detail:{}",
-                        ExceptionUtils.exception2detail(e));
-            }
-            this._task = null;
-        }
-    }
-
-    /**
-     * @param ctx
-     * @param request
-     * @throws Exception
-     */
-    private void invokeFlowOrResponseNoContent(
-            final Blob blob,
-            final String contentType,
-            final PooledBytesOutputStream output) throws Exception {
-    	final HttpRequest request = this._requestWrapper.request();
+    private void createAndInvokeRestfulBusiness() throws Exception {
+        final HttpRequest request = this._requestWrapper.request();
         final Pair<Object, String> flowAndEvent =
                 this._registrar.buildFlowMatch(
-                		request.getMethod().name(), 
-                		request.getUri(), 
-                		request, 
-                        blob, 
-                        contentType, 
-                        output);
+                        request.getMethod().name(), 
+                        request.getUri(), 
+                        this._requestWrapper);
 
         if (null == flowAndEvent) {
             // path not found
@@ -261,6 +204,18 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
 
         flow.queryInterfaceInstance(EventReceiver.class)
                 .acceptEvent(flowAndEvent.getSecond());
+    }
+    
+    private void safeDetachTask() {
+        if (null != this._task) {
+            try {
+                this._task.detach();
+            } catch (Exception e) {
+                LOG.warn("exception when detach current flow, detail:{}",
+                        ExceptionUtils.exception2detail(e));
+            }
+            this._task = null;
+        }
     }
 
     private boolean writeAndFlushResponse(final String content) {
@@ -317,7 +272,6 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
     private final HttpRequestWrapper _requestWrapper = new HttpRequestWrapper();
     
     private final Registrar<?> _registrar;
-    private final PooledBytesOutputStream _output;
     private Detachable  _task = null;
     private final JSONProvider _jsonProvider;
 }

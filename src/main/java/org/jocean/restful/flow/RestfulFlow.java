@@ -236,24 +236,6 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
             response.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
         }
 
-        //  TODO
-        //  暂时屏蔽 cookie 的写回，不设置任何cookie
-        //  复杂cookie 会导致 nginx 作为前置代理时的处理超时问题。
-        // Encode the cookie.
-//        String cookieString = _request.headers().get(COOKIE);
-//        if (cookieString != null) {
-//            Set<Cookie> cookies = CookieDecoder.decode(cookieString);
-//            if (!cookies.isEmpty()) {
-//                // Reset the cookies if necessary.
-//                for (Cookie cookie: cookies) {
-//                    response.headers().add(SET_COOKIE, ServerCookieEncoder.encode(cookie));
-//                }
-//            }
-//        } else {
-//            // Browser sent no cookie.  Add some.
-////            response.headers().add(SET_COOKIE, ServerCookieEncoder.encode("key1", "value1"));
-////            response.headers().add(SET_COOKIE, ServerCookieEncoder.encode("key2", "value2"));
-//        }
         response.headers().set(HttpHeaders.Names.CACHE_CONTROL, HttpHeaders.Values.NO_STORE);
         response.headers().set(HttpHeaders.Names.PRAGMA, HttpHeaders.Values.NO_CACHE);
 

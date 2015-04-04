@@ -18,6 +18,7 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 import java.beans.PropertyEditor;
 import java.beans.PropertyEditorManager;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -45,7 +46,6 @@ import org.jocean.event.api.EventEngine;
 import org.jocean.event.api.annotation.OnEvent;
 import org.jocean.event.api.internal.DefaultInvoker;
 import org.jocean.event.api.internal.EventInvoker;
-import org.jocean.http.HttpRequestWrapper;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
@@ -117,16 +117,14 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
 
     @Override
     public Pair<Object, String> buildFlowMatch(
-            final String httpMethod,
-            final String uri,
-            final HttpRequestWrapper wrapper) throws Exception {
-
-        final QueryStringDecoder decoder = new QueryStringDecoder(uri);
+            final HttpRequest request,
+            final ByteBuf content) throws Exception {
+        final QueryStringDecoder decoder = new QueryStringDecoder(request.getUri());
 
         final String rawPath = decoder.path();
 
         final Pair<Context, Map<String, String>> ctxAndParamValues =
-                findContextByMethodAndPath(httpMethod, rawPath);
+                findContextByMethodAndPath(request.getMethod().name(), rawPath);
 
         if (null == ctxAndParamValues) {
             return null;
@@ -142,8 +140,8 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
         final Object flow = checkNotNull(this._beanFactory.getBean(ctx._cls),
                 "can not build flow for type(%s)", ctx._cls);
         assignAllParams(ctx._field2params, flow, ctx._selfParams,
-                pathParamValues, decoder, wrapper.request(), 
-                decodeContent(wrapper)
+                pathParamValues, decoder, request, 
+                decodeContent(content)
                 // decodeContentOf(blob, contentType, false, output)
                 );
 
@@ -163,20 +161,16 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
         return Pair.of(flow, event);
     }
 
-    private byte[] decodeContent(final HttpRequestWrapper wrapper) {
-        final ByteBuf content = wrapper.retainFullContent();
+    private byte[] decodeContent(final ByteBuf content) {
+        if (content instanceof EmptyByteBuf) {
+            return null;
+        }
         try {
-            if (content instanceof EmptyByteBuf) {
-                return null;
-            }
             return ByteStreams.toByteArray(new ByteBufInputStream(content.slice()));
         } catch (IOException e) {
             LOG.warn("exception when decodeContent, detail:{}", 
                     ExceptionUtils.exception2detail(e));
             return null;
-        }
-        finally {
-            content.release();
         }
     }
     
@@ -348,6 +342,12 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
      */
     private static Object createObjectBy(final byte[] bytes, final Field beanField) {
         if (null != bytes) {
+            if (LOG.isDebugEnabled()) {
+                try {
+                    LOG.debug("createObjectBy: {}", new String(bytes, "UTF-8"));
+                } catch (UnsupportedEncodingException e) {
+                }
+            }
             return JSON.parseObject(bytes, beanField.getType());
         } else {
             try {

@@ -85,9 +85,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
     		new FlowLifecycleListener() {
 				@Override
 	            public void afterEventReceiverCreated(final EventReceiver receiver)
-	                    throws Exception {
-	                receiver.acceptEvent("start");
-	            }
+	                    throws Exception {}
 	            @Override
 	            public void afterFlowDestroy()
 	                    throws Exception {
@@ -170,13 +168,8 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
                 new Runnable() {
                     @Override
                     public void run() {
-                        try {
-                            if (null!=_receiver) {
-                                _receiver.acceptEvent(Events.ON_FILEUPLOAD_COMPLETED);
-                            }
-                        } catch (Exception e) {
-                            LOG.warn("exception when ON_FILEUPLOAD_COMPLETE, detail:{}",
-                                    ExceptionUtils.exception2detail(e));
+                        if (null!=_receiver) {
+                            _receiver.acceptEvent(Events.ON_FILEUPLOAD_COMPLETED);
                         }
                     }},
                 WAIT_FOR_TASK,
@@ -218,21 +211,11 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
                     LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
                             ExceptionUtils.exception2detail(e));
                 }
-                if (!isJson(fileUpload)) {
-                    try {
-                        this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
-                    } catch (Exception e) {
-                        LOG.warn("exception when send ONFILEUPLOAD, detail:{}", 
-                                ExceptionUtils.exception2detail(e));
-                    }
+                if (null!=this._receiver && !isJson(fileUpload)) {
+                    this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
                 }
             } else {
-                try {
-                    this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
-                } catch (Exception e) {
-                    LOG.warn("exception when send ONFILEUPLOAD, detail:{}", 
-                            ExceptionUtils.exception2detail(e));
-                }
+                this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
             }
         } else {
             LOG.warn("not except HttpData:{}, just ignore.", data);
@@ -282,10 +265,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
     .freeze();
     
     private void notifyTaskComplete() {
-        try {
-            selfEventReceiver().acceptEvent("complete");
-        } catch (Exception e) {
-        }
+        selfEventReceiver().acceptEvent("complete");
     }
 
     private void createAndInvokeRestfulBusiness(

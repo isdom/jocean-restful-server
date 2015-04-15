@@ -58,7 +58,9 @@ import org.springframework.beans.factory.BeanFactoryAware;
 
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 import com.google.common.io.ByteStreams;
 
 /**
@@ -118,7 +120,9 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
     @Override
     public Pair<Object, String> buildFlowMatch(
             final HttpRequest request,
-            final ByteBuf content) throws Exception {
+            final ByteBuf content,
+            final Map<String, List<String>> formParameters
+            ) throws Exception {
         final QueryStringDecoder decoder = new QueryStringDecoder(request.getUri());
 
         final String rawPath = decoder.path();
@@ -139,10 +143,10 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
 
         final Object flow = checkNotNull(this._beanFactory.getBean(ctx._cls),
                 "can not build flow for type(%s)", ctx._cls);
+        final Map<String, List<String>> queryValues = unionQueryValues(decoder.parameters(), formParameters);
         assignAllParams(ctx._field2params, flow, ctx._selfParams,
-                pathParamValues, decoder, request, 
+                pathParamValues, queryValues, request,
                 decodeContent(content)
-                // decodeContentOf(blob, contentType, false, output)
                 );
 
         final EventInvoker invoker = DefaultInvoker.of(flow, ctx._init);
@@ -159,6 +163,25 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
         }
 
         return Pair.of(flow, event);
+    }
+
+    private Map<String, List<String>> unionQueryValues(
+            Map<String, List<String>> queryParameters,
+            Map<String, List<String>> formParameters) {
+        if (null==queryParameters || queryParameters.isEmpty()) {
+            return formParameters;
+        } else if (null==formParameters || formParameters.isEmpty()) {
+            return queryParameters;
+        } else {
+            final ListMultimap<String, String> union = ArrayListMultimap.create();
+            for (Map.Entry<String, List<String>> entry : queryParameters.entrySet()) {
+                union.putAll(entry.getKey(), entry.getValue());
+            }
+            for (Map.Entry<String, List<String>> entry : formParameters.entrySet()) {
+                union.putAll(entry.getKey(), entry.getValue());
+            }
+            return Multimaps.asMap(union);
+        }
     }
 
     private byte[] decodeContent(final ByteBuf content) {
@@ -270,22 +293,20 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
             final Object obj,
             final Params params,
             final Map<String, String> pathParamValues,
-            final QueryStringDecoder decoder,
+            final Map<String, List<String>> queryParamValues,
             final HttpRequest request,
             final byte[] bytes) {
         if (null != params._pathParams && null != pathParamValues) {
             for (Field field : params._pathParams) {
-                injectPathParamValue(pathParamValues.get(field.getAnnotation(PathParam.class).value()), obj,
-                        field);
+                injectPathParamValue(pathParamValues.get(field.getAnnotation(PathParam.class).value()), 
+                        obj, field);
             }
         }
 
-        if (null != params._queryParams) {
+        if (null != params._queryParams && null != queryParamValues) {
             for (Field field : params._queryParams) {
-                injectParamValue(decoder.parameters().get(
-                                field.getAnnotation(QueryParam.class).value()), obj,
-                        field
-                );
+                injectParamValue(queryParamValues.get(field.getAnnotation(QueryParam.class).value()), 
+                        obj, field);
             }
         }
 
@@ -324,7 +345,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
                         final Params beanParams = field2params.get(beanField);
                         if (null != beanParams) {
                             assignAllParams(field2params, bean, beanParams,
-                                    pathParamValues, decoder, request, bytes);
+                                    pathParamValues, queryParamValues, request, bytes);
                         }
                     }
                 } catch (Exception e) {

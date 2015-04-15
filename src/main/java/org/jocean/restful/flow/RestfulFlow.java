@@ -20,6 +20,7 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.multipart.Attribute;
 import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
 import io.netty.handler.codec.http.multipart.FileUpload;
 import io.netty.handler.codec.http.multipart.HttpDataFactory;
@@ -28,6 +29,10 @@ import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.EndOfDataDec
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
 import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.util.CharsetUtil;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import org.jocean.event.api.AbstractFlow;
 import org.jocean.event.api.BizStep;
@@ -50,6 +55,10 @@ import org.jocean.restful.OutputSource;
 import org.jocean.restful.Registrar;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Multimaps;
 
 /**
  * @author isdom
@@ -206,7 +215,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
                 final ByteBuf content = getContent(fileUpload);
                 try {
                     createAndInvokeRestfulBusiness(
-                            _requestWrapper.request(), content);
+                            _requestWrapper.request(), content, Multimaps.asMap(this._formParameters));
                 } catch (Exception e) {
                     LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
                             ExceptionUtils.exception2detail(e));
@@ -216,6 +225,15 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
                 }
             } else {
                 this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
+            }
+        } else if (data.getHttpDataType().equals(
+                InterfaceHttpData.HttpDataType.Attribute)) {
+            final Attribute attribute = (Attribute) data;
+            try {
+                this._formParameters.put(attribute.getName(), attribute.getValue());
+            } catch (IOException e) {
+                LOG.warn("exception when add form parameters for attr({}), detail: {}", 
+                        attribute, ExceptionUtils.exception2detail(e));
             }
         } else {
             LOG.warn("not except HttpData:{}, just ignore.", data);
@@ -241,7 +259,8 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
                     public void run() {
                         final ByteBuf content = _requestWrapper.retainFullContent();
                         try {
-                            createAndInvokeRestfulBusiness(_requestWrapper.request(), content);
+                            createAndInvokeRestfulBusiness(_requestWrapper.request(), content, 
+                                    Multimaps.asMap(_formParameters));
                         } catch (Exception e) {
                             LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
                                     ExceptionUtils.exception2detail(e));
@@ -269,10 +288,10 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
     }
 
     private void createAndInvokeRestfulBusiness(
-            final HttpRequest request, final ByteBuf content) 
+            final HttpRequest request, final ByteBuf content, final Map<String, List<String>> formParameters) 
             throws Exception {
         final Pair<Object, String> flowAndEvent =
-                this._registrar.buildFlowMatch(request, content);
+                this._registrar.buildFlowMatch(request, content, formParameters);
 
         if (null == flowAndEvent) {
             // path not found
@@ -368,7 +387,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
     private static final HttpDataFactory HTTP_DATA_FACTORY =
             new DefaultHttpDataFactory(false);  // DO NOT use Disk
     private EventReceiver _receiver;
-    
+    private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();
     private final Registrar<?> _registrar;
     private Detachable  _task = null;
     private final JSONProvider _jsonProvider;

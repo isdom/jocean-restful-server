@@ -6,6 +6,8 @@ package org.jocean.restful;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpRequest;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.jocean.idiom.Pair;
@@ -21,5 +23,6 @@ public interface Registrar<REG extends Registrar<?>> {
 
     public Pair<Object, String> buildFlowMatch(
             final HttpRequest request,
-            final ByteBuf content) throws Exception;
+            final ByteBuf content, 
+            final Map<String, List<String>> formParameters) throws Exception;
 }

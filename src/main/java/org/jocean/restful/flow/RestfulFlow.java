@@ -112,6 +112,10 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
     	    	if (LOG.isDebugEnabled()) {
     	    		LOG.debug("onStateChanged: prev:{} next:{} event:{}", prev, next, causeEvent);
     	    	}
+                if (WAIT_FOR_TASK==next && !_isRequestHandled) {
+                    LOG.warn("request {} not handled, so detach", _requestWrapper);
+                    selfEventReceiver().acceptEvent("detach");
+                }
     			if (null==next && "detach".equals(causeEvent)) {
     				// means flow end by detach event
     	            safeDetachTask();
@@ -214,7 +218,8 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
             if (null==this._receiver) {
                 final ByteBuf content = getContent(fileUpload);
                 try {
-                    createAndInvokeRestfulBusiness(
+                    _isRequestHandled = 
+                        createAndInvokeRestfulBusiness(
                             _requestWrapper.request(), content, Multimaps.asMap(this._formParameters));
                 } catch (Exception e) {
                     LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
@@ -259,7 +264,8 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
                     public void run() {
                         final ByteBuf content = _requestWrapper.retainFullContent();
                         try {
-                            createAndInvokeRestfulBusiness(_requestWrapper.request(), content, 
+                            _isRequestHandled = 
+                                createAndInvokeRestfulBusiness(_requestWrapper.request(), content, 
                                     Multimaps.asMap(_formParameters));
                         } catch (Exception e) {
                             LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
@@ -287,7 +293,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         selfEventReceiver().acceptEvent("complete");
     }
 
-    private void createAndInvokeRestfulBusiness(
+    private boolean createAndInvokeRestfulBusiness(
             final HttpRequest request, final ByteBuf content, final Map<String, List<String>> formParameters) 
             throws Exception {
         final Pair<Object, String> flowAndEvent =
@@ -296,7 +302,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         if (null == flowAndEvent) {
             // path not found
             writeAndFlushResponse(null);
-            return;
+            return false;
         }
 
         final InterfaceSource flow = (InterfaceSource) flowAndEvent.getFirst();
@@ -335,6 +341,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
 
         this._receiver = flow.queryInterfaceInstance(EventReceiver.class);
         this._receiver.acceptEvent(flowAndEvent.getSecond());
+        return true;
     }
     
     private void safeDetachTask() {
@@ -381,6 +388,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
     }
 
     private ChannelHandlerContext _channelCtx;
+    private boolean _isRequestHandled = false;
     
     private final HttpRequestWrapper _requestWrapper = new HttpRequestWrapper();
     private HttpPostRequestDecoder _postDecoder;

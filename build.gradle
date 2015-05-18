@@ -26,6 +26,7 @@ dependencies {
     compile "org.jocean:jocean-event-api:0.0.7-SNAPSHOT"
     compile("org.jocean:jocean-j2se:0.0.3-SNAPSHOT") { transitive = false }
     compile("org.jocean:jocean-rosa:0.1.1-SNAPSHOT") { transitive = false }
+    compile("org.jocean:jocean-http:0.0.1-SNAPSHOT") { transitive = false }
 
     testCompile 'ch.qos.logback:logback-classic:1.1.2'
 }

@@ -15,21 +15,35 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.multipart.Attribute;
+import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
+import io.netty.handler.codec.http.multipart.FileUpload;
+import io.netty.handler.codec.http.multipart.HttpDataFactory;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.EndOfDataDecoderException;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
 import io.netty.util.CharsetUtil;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import org.jocean.event.api.EventReceiver;
+import org.jocean.event.api.PairedGuardEventable;
 import org.jocean.http.server.HttpTrade;
 import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.json.JSONProvider;
+import org.jocean.netty.NettyUtils;
+import org.jocean.restful.Events;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
 import org.jocean.restful.Registrar;
@@ -51,6 +65,9 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(RestfulAgent.class);
+
+    private static final PairedGuardEventable ONFILEUPLOAD_EVENT = 
+            new PairedGuardEventable(NettyUtils._NETTY_REFCOUNTED_GUARD, Events.ON_FILEUPLOAD);
 
     public RestfulAgent(
             final Registrar<?>  registrar,
@@ -74,29 +91,148 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
     @Override
     public void onNext(final HttpTrade trade) {
         trade.request().subscribe(new Subscriber<HttpObject>() {
-          private Detachable  _task = null;
-          private EventReceiver _receiver;
-          private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();
+            private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();
+            private Detachable _task = null;
+            private EventReceiver _receiver;
+            private boolean _isMultipart = false;
+            private HttpPostRequestDecoder _postDecoder;
+            @SuppressWarnings("unused")
+            private boolean _isRequestHandled = false;
+            private HttpRequest _request;
           
-            @Override
-            public void onCompleted() {
-                final FullHttpRequest req = trade.retainFullHttpRequest();
-                if (null!=req) {
-                    try {
-                        createAndInvokeRestfulBusiness(trade, req, req.content(), 
-                            Multimaps.asMap(_formParameters)
-                                );
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+            private void destructor() {
+                if (null!=this._postDecoder) {
+                    this._postDecoder.destroy();
+                    this._postDecoder = null;
                 }
             }
             @Override
-            public void onError(Throwable e) {
+            public void onCompleted() {
+                if (this._isMultipart) {
+                    onCompleted4Multipart();
+                } else {
+                    onCompleted4Standard();
+                }
+                destructor();
             }
+
+            @Override
+            public void onError(Throwable e) {
+                destructor();
+            }
+            
+            private void onCompleted4Multipart() {
+                if (null!=this._receiver) {
+                    this._receiver.acceptEvent(Events.ON_FILEUPLOAD_COMPLETED);
+                }
+            }
+
+            private void onCompleted4Standard() {
+                final FullHttpRequest req = trade.retainFullHttpRequest();
+                if (null!=req) {
+                    try {
+                        this._isRequestHandled =
+                            createAndInvokeRestfulBusiness(
+                                    trade, 
+                                    req, 
+                                    req.content(), 
+                                    Multimaps.asMap(this._formParameters));
+                    } catch (Exception e) {
+                        LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
+                                ExceptionUtils.exception2detail(e));
+                    } finally {
+                        req.release();
+                    }
+                }
+            }
+            
             @Override
             public void onNext(final HttpObject msg) {
+                if (msg instanceof HttpRequest) {
+                    this._request = (HttpRequest)msg;
+                    if ( this._request.getMethod().equals(HttpMethod.POST)
+                            && HttpPostRequestDecoder.isMultipart(this._request)) {
+                        this._isMultipart = true;
+                        this._postDecoder = new HttpPostRequestDecoder(
+                                HTTP_DATA_FACTORY, this._request);
+                    } else {
+                        this._isMultipart = false;
+                    }
+                }
+                if (msg instanceof HttpContent && this._isMultipart) {
+                    onNext4Multipart((HttpContent)msg);
+                }
             }
+
+            private void onNext4Multipart(HttpContent content) {
+                try {
+                    this._postDecoder.offer(content);
+                } catch (ErrorDataDecoderException e) {
+                    //  TODO
+                }
+                try {
+                    while (this._postDecoder.hasNext()) {
+                        final InterfaceHttpData data = this._postDecoder.next();
+                        if (data != null) {
+                            try {
+                                processHttpData(data);
+                            } finally {
+                                data.release();
+                            }
+                        }
+                    }
+                } catch (EndOfDataDecoderException e) {
+                    //  TODO
+                }
+            }
+            
+            private void processHttpData(final InterfaceHttpData data) {
+                if (data.getHttpDataType().equals(
+                        InterfaceHttpData.HttpDataType.FileUpload)) {
+                    final FileUpload fileUpload = (FileUpload)data;
+                    if (null==this._receiver) {
+                        final ByteBuf content = getContent(fileUpload);
+                        try {
+                            this._isRequestHandled = 
+                                createAndInvokeRestfulBusiness(
+                                        trade,
+                                        this._request, 
+                                        content, 
+                                        Multimaps.asMap(this._formParameters));
+                        } catch (Exception e) {
+                            LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
+                                    ExceptionUtils.exception2detail(e));
+                        }
+                        if (null!=this._receiver && !isJson(fileUpload)) {
+                            this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
+                        }
+                    } else {
+                        this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
+                    }
+                } else if (data.getHttpDataType().equals(
+                        InterfaceHttpData.HttpDataType.Attribute)) {
+                    final Attribute attribute = (Attribute) data;
+                    try {
+                        this._formParameters.put(attribute.getName(), attribute.getValue());
+                    } catch (IOException e) {
+                        LOG.warn("exception when add form parameters for attr({}), detail: {}", 
+                                attribute, ExceptionUtils.exception2detail(e));
+                    }
+                } else {
+                    LOG.warn("not except HttpData:{}, just ignore.", data);
+                }
+            }
+            
+            private ByteBuf getContent(final FileUpload fileUpload) {
+                return isJson(fileUpload) 
+                        ? fileUpload.content()
+                        : Unpooled.EMPTY_BUFFER;
+            }
+
+            private boolean isJson(final FileUpload fileUpload) {
+                return fileUpload.getContentType().startsWith("application/json");
+            }
+            
             private boolean createAndInvokeRestfulBusiness(
                     final HttpTrade trade,
                     final HttpRequest request, 
@@ -191,6 +327,8 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
         return keepAlive;
     }
     
+    private final HttpDataFactory HTTP_DATA_FACTORY =
+            new DefaultHttpDataFactory(false);  // DO NOT use Disk
     private final Registrar<?> _registrar;
     private final JSONProvider _jsonProvider;
 }

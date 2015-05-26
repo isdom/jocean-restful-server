@@ -52,6 +52,7 @@ import org.slf4j.LoggerFactory;
 
 import rx.Observable;
 import rx.Subscriber;
+import rx.observers.SerializedSubscriber;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
@@ -90,7 +91,8 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
 
     @Override
     public void onNext(final HttpTrade trade) {
-        trade.request().subscribe(new Subscriber<HttpObject>() {
+        final Subscriber<HttpObject> subscriber = 
+                new Subscriber<HttpObject>() {
             private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();
             private Detachable _task = null;
             private EventReceiver _receiver;
@@ -117,7 +119,10 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
             }
 
             @Override
-            public void onError(Throwable e) {
+            public void onError(final Throwable e) {
+                safeDetachTask();
+                LOG.warn("SOURCE_CANCELED\nfor cause:[{}]", 
+                        ExceptionUtils.exception2detail(e));
                 destructor();
             }
             
@@ -297,8 +302,10 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
                     this._task = null;
                 }
             }
-            }
-        );
+        };
+        
+        trade.request().subscribe(
+            new SerializedSubscriber<HttpObject>(subscriber));
     }
     
     private boolean writeAndFlushResponse(final HttpTrade trade, final HttpRequest request, final String content) {

@@ -12,6 +12,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -29,14 +30,16 @@ import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.EndOfDataDecoderException;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import org.jocean.event.api.EventReceiver;
 import org.jocean.event.api.PairedGuardEventable;
-import org.jocean.http.server.HttpTrade;
+import org.jocean.http.server.HttpServer.HttpTrade;
 import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
@@ -101,13 +104,41 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
             @SuppressWarnings("unused")
             private boolean _isRequestHandled = false;
             private HttpRequest _request;
+            private final List<HttpObject> _reqHttpObjects = new ArrayList<>();
           
             private void destructor() {
                 if (null!=this._postDecoder) {
                     this._postDecoder.destroy();
                     this._postDecoder = null;
                 }
+                // release all HttpObjects of request
+                for (HttpObject obj : this._reqHttpObjects) {
+                    ReferenceCountUtil.release(obj);
+                }
+                this._reqHttpObjects.clear();
             }
+            
+            private FullHttpRequest retainFullHttpRequest() {
+                if (this._reqHttpObjects.size()>0) {
+                    if (this._reqHttpObjects.get(0) instanceof FullHttpRequest) {
+                        return ((FullHttpRequest)this._reqHttpObjects.get(0)).retain();
+                    }
+                    
+                    final HttpRequest req = (HttpRequest)this._reqHttpObjects.get(0);
+                    final ByteBuf[] bufs = new ByteBuf[this._reqHttpObjects.size()-1];
+                    for (int idx = 1; idx<this._reqHttpObjects.size(); idx++) {
+                        bufs[idx-1] = ((HttpContent)this._reqHttpObjects.get(idx)).content().retain();
+                    }
+                    return new DefaultFullHttpRequest(
+                            req.getProtocolVersion(), 
+                            req.getMethod(), 
+                            req.getUri(), 
+                            Unpooled.wrappedBuffer(bufs));
+                } else {
+                    return null;
+                }
+            }
+            
             @Override
             public void onCompleted() {
                 if (this._isMultipart) {
@@ -133,7 +164,7 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
             }
 
             private void onCompleted4Standard() {
-                final FullHttpRequest req = trade.retainFullHttpRequest();
+                final FullHttpRequest req = retainFullHttpRequest();
                 if (null!=req) {
                     try {
                         this._isRequestHandled =
@@ -153,6 +184,7 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
             
             @Override
             public void onNext(final HttpObject msg) {
+                this._reqHttpObjects.add(ReferenceCountUtil.retain(msg));
                 if (msg instanceof HttpRequest) {
                     this._request = (HttpRequest)msg;
                     if ( this._request.getMethod().equals(HttpMethod.POST)
@@ -329,7 +361,7 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
         response.headers().set(HttpHeaders.Names.CACHE_CONTROL, HttpHeaders.Values.NO_STORE);
         response.headers().set(HttpHeaders.Names.PRAGMA, HttpHeaders.Values.NO_CACHE);
 
-        trade.response(Observable.<HttpObject>just(response));
+        Observable.<HttpObject>just(response).subscribe(trade.responseObserver());
 
         return keepAlive;
     }

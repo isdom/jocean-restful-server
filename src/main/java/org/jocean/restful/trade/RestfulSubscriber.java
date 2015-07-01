@@ -63,19 +63,24 @@ import com.google.common.collect.Multimaps;
  * @author isdom
  *
  */
-public class RestfulAgent extends Subscriber<HttpTrade> {
+public class RestfulSubscriber extends Subscriber<HttpTrade> {
 
     private static final Logger LOG =
-            LoggerFactory.getLogger(RestfulAgent.class);
+            LoggerFactory.getLogger(RestfulSubscriber.class);
 
     private static final PairedGuardEventable ONFILEUPLOAD_EVENT = 
             new PairedGuardEventable(NettyUtils._NETTY_REFCOUNTED_GUARD, Events.ON_FILEUPLOAD);
 
-    public RestfulAgent(
+    public RestfulSubscriber(
             final Registrar<?>  registrar,
             final JSONProvider  jsonProvider) {
         this._registrar = registrar;
         this._jsonProvider = jsonProvider;
+    }
+    
+    public void destroy() {
+        //  clean up all leak HttpDatas
+        HTTP_DATA_FACTORY.cleanAllHttpDatas();
     }
     
     @Override
@@ -106,6 +111,8 @@ public class RestfulAgent extends Subscriber<HttpTrade> {
           
             private void destructor() {
                 if (null!=this._postDecoder) {
+                    // HttpPostRequestDecoder's destroy call HttpDataFactory.cleanRequestHttpDatas
+                    //  so no need to cleanRequestHttpDatas outside
                     this._postDecoder.destroy();
                     this._postDecoder = null;
                 }

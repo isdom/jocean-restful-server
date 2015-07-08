@@ -11,6 +11,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
+import io.netty.buffer.EmptyByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -20,6 +22,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.multipart.Attribute;
 import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
 import io.netty.handler.codec.http.multipart.FileUpload;
@@ -31,6 +34,7 @@ import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.util.CharsetUtil;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Map;
 
@@ -58,6 +62,7 @@ import rx.observers.SerializedSubscriber;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
+import com.google.common.io.ByteStreams;
 
 /**
  * @author isdom
@@ -147,12 +152,24 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                 final FullHttpRequest req = this._cached.retainFullHttpRequest();
                 if (null!=req) {
                     try {
-                        this._isRequestHandled =
-                            createAndInvokeRestfulBusiness(
-                                    trade, 
-                                    req, 
-                                    req.content(), 
-                                    Multimaps.asMap(this._formParameters));
+                        if (isPostWithForm(req)) {
+                            final String queryString = toQueryString(req.content());
+                            this._isRequestHandled =
+                                createAndInvokeRestfulBusiness(
+                                        trade, 
+                                        req, 
+                                        Unpooled.EMPTY_BUFFER, 
+                                        null != queryString 
+                                            ? new QueryStringDecoder(queryString, false).parameters()
+                                            : null);
+                        } else {
+                            this._isRequestHandled =
+                                createAndInvokeRestfulBusiness(
+                                        trade, 
+                                        req, 
+                                        req.content(), 
+                                        Multimaps.asMap(this._formParameters));
+                        }
                     } catch (Exception e) {
                         LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
                                 ExceptionUtils.exception2detail(e));
@@ -345,6 +362,21 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
         return keepAlive;
     }
     
+    private static String toQueryString(final ByteBuf content)
+            throws UnsupportedEncodingException, IOException {
+        if (content instanceof EmptyByteBuf) {
+            return null;
+        }
+        return new String(ByteStreams.toByteArray(new ByteBufInputStream(content.slice())),
+                "UTF-8");
+    }
+
+    private static boolean isPostWithForm(final FullHttpRequest req) {
+        return req.getMethod().equals(HttpMethod.POST)
+          && req.headers().contains(HttpHeaders.Names.CONTENT_TYPE)
+          && req.headers().get(HttpHeaders.Names.CONTENT_TYPE).startsWith(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED);
+    }
+
     private final HttpDataFactory HTTP_DATA_FACTORY =
             new DefaultHttpDataFactory(false);  // DO NOT use Disk
     private final Registrar<?> _registrar;

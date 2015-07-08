@@ -9,11 +9,11 @@ import static com.google.common.base.Preconditions.checkState;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.EmptyByteBuf;
-import io.netty.handler.codec.http.Cookie;
-import io.netty.handler.codec.http.CookieDecoder;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 
 import java.beans.PropertyEditor;
 import java.beans.PropertyEditorManager;
@@ -322,7 +322,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
         if (null != params._cookieParams) {
             final String rawCookie = request.headers().get(HttpHeaders.Names.COOKIE);
             if (null != rawCookie) {
-                final Set<Cookie> cookies = CookieDecoder.decode(rawCookie);
+                final Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(rawCookie);
                 if (!cookies.isEmpty()) {
                     for (Field field : params._cookieParams) {
                         final Cookie nettyCookie = findCookieNamed(
@@ -414,9 +414,9 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
             final Cookie nettyCookie) {
         if (field.getType().equals(javax.ws.rs.core.Cookie.class)) {
             try {
-                field.set(flow, new javax.ws.rs.core.Cookie(nettyCookie.getName(),
-                        nettyCookie.getValue(), nettyCookie.getPath(),
-                        nettyCookie.getDomain(), nettyCookie.getVersion()));
+                field.set(flow, new javax.ws.rs.core.Cookie(nettyCookie.name(),
+                        nettyCookie.value(), nettyCookie.path(),
+                        nettyCookie.domain(), 0));
             } catch (Exception e) {
                 LOG.warn("exception when set flow({}).{} CookieParam({}), detail:{} ",
                         flow, field.getName(), nettyCookie, ExceptionUtils.exception2detail(e));
@@ -426,7 +426,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
 
     private static Cookie findCookieNamed(final Iterable<Cookie> cookies, final String name) {
         for (Cookie cookie : cookies) {
-            if (cookie.getName().equals(name)) {
+            if (cookie.name().equals(name)) {
                 return cookie;
             }
         }

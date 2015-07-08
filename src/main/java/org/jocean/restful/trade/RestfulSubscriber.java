@@ -42,12 +42,12 @@ import org.jocean.event.api.EventReceiver;
 import org.jocean.event.api.PairedGuardEventable;
 import org.jocean.http.server.CachedRequest;
 import org.jocean.http.server.HttpServer.HttpTrade;
+import org.jocean.http.util.Nettys;
 import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.json.JSONProvider;
-import org.jocean.netty.NettyUtils;
 import org.jocean.restful.Events;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
@@ -74,7 +74,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             LoggerFactory.getLogger(RestfulSubscriber.class);
 
     private static final PairedGuardEventable ONFILEUPLOAD_EVENT = 
-            new PairedGuardEventable(NettyUtils._NETTY_REFCOUNTED_GUARD, Events.ON_FILEUPLOAD);
+            new PairedGuardEventable(Nettys._NETTY_REFCOUNTED_GUARD, Events.ON_FILEUPLOAD);
 
     public RestfulSubscriber(
             final Registrar<?>  registrar,

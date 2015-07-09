@@ -66,6 +66,9 @@ import com.google.common.collect.Multimaps;
  */
 public class RestfulFlow extends AbstractFlow<RestfulFlow> {
 
+    private static final String APPLICATION_JSON_CHARSET_UTF_8 = 
+            "application/json; charset=UTF-8";
+
     private static final Logger LOG = LoggerFactory
             .getLogger(RestfulFlow.class);
     
@@ -301,7 +304,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
 
         if (null == flowAndEvent) {
             // path not found
-            writeAndFlushResponse(null);
+            writeAndFlushResponse(null, null);
             return false;
         }
 
@@ -318,7 +321,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
                     if (LOG.isDebugEnabled()) {
                         LOG.debug("send resp:{}", responseJson);
                     }
-                    writeAndFlushResponse(responseJson);
+                    writeAndFlushResponse(responseJson, APPLICATION_JSON_CHARSET_UTF_8);
                     notifyTaskComplete();
                 }
 
@@ -330,7 +333,19 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
                     if (LOG.isDebugEnabled()) {
                         LOG.debug("send resp:{}", responseJson);
                     }
-                    writeAndFlushResponse(responseJson);
+                    writeAndFlushResponse(responseJson, APPLICATION_JSON_CHARSET_UTF_8);
+                    notifyTaskComplete();
+                }
+
+                @Override
+                public void outputAsContentType(
+                        final Object representation,
+                        final String contentType) {
+                    safeDetachTask();
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("send resp:{}", representation);
+                    }
+                    writeAndFlushResponse(representation.toString(), contentType);
                     notifyTaskComplete();
                 }
             });
@@ -356,7 +371,7 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
         }
     }
 
-    private boolean writeAndFlushResponse(final String content) {
+    private boolean writeAndFlushResponse(final String content, final String contentType) {
         // Decide whether to close the connection or not.
         boolean keepAlive = isKeepAlive(this._requestWrapper.request());
         // Build the response object.
@@ -364,7 +379,9 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
                 HTTP_1_1, (null != content ? OK : NO_CONTENT),
                 (null != content ? Unpooled.copiedBuffer(content, CharsetUtil.UTF_8) : Unpooled.buffer(0)));
 
-        response.headers().set(CONTENT_TYPE, "application/json; charset=UTF-8");
+        if (null != content) {
+            response.headers().set(CONTENT_TYPE, contentType);
+        }
 
         if (keepAlive) {
             // Add 'Content-Length' header only for a keep-alive connection.

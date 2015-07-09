@@ -76,6 +76,9 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
     private static final PairedGuardEventable ONFILEUPLOAD_EVENT = 
             new PairedGuardEventable(Nettys._NETTY_REFCOUNTED_GUARD, Events.ON_FILEUPLOAD);
 
+    private static final String APPLICATION_JSON_CHARSET_UTF_8 = 
+            "application/json; charset=UTF-8";
+    
     public RestfulSubscriber(
             final Registrar<?>  registrar,
             final JSONProvider  jsonProvider) {
@@ -277,7 +280,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
 
                 if (null == flowAndEvent) {
                     // path not found
-                    writeAndFlushResponse(trade, request, null);
+                    writeAndFlushResponse(trade, request, null, null);
                     return false;
                 }
 
@@ -293,8 +296,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             if (LOG.isDebugEnabled()) {
                                 LOG.debug("send resp:{}", responseJson);
                             }
-                            writeAndFlushResponse(trade, request, responseJson);
-//                            notifyTaskComplete();
+                            writeAndFlushResponse(trade, request, responseJson, APPLICATION_JSON_CHARSET_UTF_8);
                         }
 
                         @Override
@@ -305,8 +307,18 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             if (LOG.isDebugEnabled()) {
                                 LOG.debug("send resp:{}", responseJson);
                             }
-                            writeAndFlushResponse(trade, request, responseJson);
-//                            notifyTaskComplete();
+                            writeAndFlushResponse(trade, request, responseJson, APPLICATION_JSON_CHARSET_UTF_8);
+                        }
+
+                        @Override
+                        public void outputAsContentType(
+                                final Object representation,
+                                final String contentType) {
+                            safeDetachTask();
+                            if (LOG.isDebugEnabled()) {
+                                LOG.debug("send resp:{}", representation);
+                            }
+                            writeAndFlushResponse(trade, request, representation.toString(), contentType);
                         }
                     });
                 } catch (Exception e) {
@@ -336,7 +348,11 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             new SerializedSubscriber<HttpObject>(subscriber));
     }
     
-    private boolean writeAndFlushResponse(final HttpTrade trade, final HttpRequest request, final String content) {
+    private boolean writeAndFlushResponse(
+            final HttpTrade trade, 
+            final HttpRequest request, 
+            final String content, 
+            final String contentType) {
         // Decide whether to close the connection or not.
         boolean keepAlive = isKeepAlive(request);
         // Build the response object.
@@ -344,7 +360,9 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                 HTTP_1_1, (null != content ? OK : NO_CONTENT),
                 (null != content ? Unpooled.copiedBuffer(content, CharsetUtil.UTF_8) : Unpooled.buffer(0)));
 
-        response.headers().set(CONTENT_TYPE, "application/json; charset=UTF-8");
+        if (null != content) {
+            response.headers().set(CONTENT_TYPE, contentType);
+        }
 
         if (keepAlive) {
             // Add 'Content-Length' header only for a keep-alive connection.

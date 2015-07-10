@@ -46,6 +46,7 @@ import org.jocean.event.api.EventEngine;
 import org.jocean.event.api.annotation.OnEvent;
 import org.jocean.event.api.internal.DefaultInvoker;
 import org.jocean.event.api.internal.EventInvoker;
+import org.jocean.idiom.BeanHolder;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
@@ -53,8 +54,6 @@ import org.jocean.idiom.ReflectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.BeanFactory;
-import org.springframework.beans.factory.BeanFactoryAware;
 
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.ArrayListMultimap;
@@ -66,7 +65,7 @@ import com.google.common.io.ByteStreams;
 /**
  * @author isdom
  */
-public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAware {
+public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
     private static final Logger LOG
             = LoggerFactory.getLogger(RegistrarImpl.class);
@@ -141,7 +140,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
             LOG.debug("Registrar: found flow class {} match path {}", ctx._cls, rawPath);
         }
 
-        final Object flow = checkNotNull(this._beanFactory.getBean(ctx._cls),
+        final Object flow = checkNotNull(this._beanHolder.getBean(ctx._cls),
                 "can not build flow for type(%s)", ctx._cls);
         final Map<String, List<String>> queryValues = unionQueryValues(decoder.parameters(), formParameters);
         assignAllParams(ctx._field2params, flow, ctx._selfParams,
@@ -535,9 +534,8 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
         }
     }
 
-    @Override
-    public void setBeanFactory(final BeanFactory beanFactory) throws BeansException {
-        this._beanFactory = beanFactory;
+    public void setBeanHolder(final BeanHolder beanHolder) throws BeansException {
+        this._beanHolder = beanHolder;
     }
 
     private static final class Params {
@@ -628,6 +626,6 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, BeanFactoryAwar
 
     private final Multimap<String, Pair<PathMatcher, Context>> _pathmatchers = ArrayListMultimap.create();
 
-    private BeanFactory _beanFactory;
+    private BeanHolder _beanHolder;
     private final EventEngine _engine;
 }

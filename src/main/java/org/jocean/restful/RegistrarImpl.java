@@ -25,6 +25,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,6 +42,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
 
+import org.jocean.event.api.AbstractFlow;
 import org.jocean.event.api.BizStep;
 import org.jocean.event.api.EventEngine;
 import org.jocean.event.api.annotation.OnEvent;
@@ -51,9 +53,13 @@ import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.ReflectUtils;
+import org.jocean.j2se.unit.UnitAgent;
+import org.jocean.j2se.unit.UnitListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.ConfigurableApplicationContext;
 
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.ArrayListMultimap;
@@ -72,6 +78,45 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
     public RegistrarImpl(final EventEngine source) {
         this._engine = source;
+    }
+
+    public void setBeanHolder(final BeanHolder beanHolder) throws BeansException {
+        this._beanHolder = beanHolder;
+        if (this._beanHolder instanceof UnitAgent) {
+            ((UnitAgent)this._beanHolder).addUnitListener(new UnitListener() {
+
+                @Override
+                public void postUnitCreated(final ConfigurableApplicationContext appctx) {
+                    for ( String name : appctx.getBeanDefinitionNames() ) {
+                        final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
+                        try {
+                            final Class<?> cls = Class.forName(def.getBeanClassName());
+                            if (AbstractFlow.class.isAssignableFrom(cls)) {
+                                register(cls);
+                            }
+                        } catch (Exception e) {
+                            LOG.warn("exception when onUnitCreated, detail: {}", 
+                                    ExceptionUtils.exception2detail(e));
+                        }
+                    }
+                }
+
+                @Override
+                public void beforeUnitClosed(final ConfigurableApplicationContext appctx) {
+                    for ( String name : appctx.getBeanDefinitionNames() ) {
+                        final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
+                        try {
+                            final Class<?> cls = Class.forName(def.getBeanClassName());
+                            if (AbstractFlow.class.isAssignableFrom(cls)) {
+                                unregister(cls);
+                            }
+                        } catch (Exception e) {
+                            LOG.warn("exception when onUnitClosed, detail: {}", 
+                                    ExceptionUtils.exception2detail(e));
+                        }
+                    }
+                }});
+        }
     }
 
     @Override
@@ -116,6 +161,34 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         return this;
     }
 
+    public RegistrarImpl unregister(final Class<?> cls) {
+        LOG.info("unregister {}'s entry.", cls);
+        {
+            final Iterator<Map.Entry<String, Context>> itr = 
+                    this._resources.entrySet().iterator();
+            while ( itr.hasNext()) {
+                final Map.Entry<String, Context> entry = itr.next();
+                if (entry.getValue()._cls.equals(cls)) {
+                    itr.remove();
+                    LOG.info("remove {} from resources.", entry.getKey());
+                }
+            }
+        }
+        
+        {
+            Iterator<Map.Entry<String, Pair<PathMatcher, Context>>> itr = 
+                    this._pathmatchers.entries().iterator();
+            while ( itr.hasNext()) {
+                final Map.Entry<String, Pair<PathMatcher, Context>> entry = itr.next();
+                if (entry.getValue().second._cls.equals(cls)) {
+                    itr.remove();
+                    LOG.info("remove {} from _pathmatchers.", entry.getKey());
+                }
+            }
+        }
+        return this;
+    }
+    
     @Override
     public Pair<Object, String> buildFlowMatch(
             final HttpRequest request,
@@ -196,97 +269,6 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         }
     }
     
-    /*
-    private byte[] decodeContentOf(final Blob blob, final String contentType,boolean isRaw, final  PooledBytesOutputStream  output)
-            throws Exception {
-        if (null == blob || contentType == null) {
-            return null;
-        }else if(isRaw){
-            InputStream is = null;
-            try {
-                is = blob.genInputStream();
-                if (null != is) {
-                    final byte[] bytes = new byte[is.available()];
-                    is.read(bytes);
-                    return bytes;
-                }
-            } finally {
-                if (null != is) {
-                    try {
-                        is.close();
-                    } catch (Throwable e) {
-                    }
-                }
-            }
-        }
-        else if (contentType.startsWith("application/cjson")) {
-            final InputStream is = blob.genInputStream();
-            InflaterInputStream zis = null;
-            final PooledBytesOutputStream decompressOut = new PooledBytesOutputStream(output.pool());
-
-            try {
-                zis = new InflaterInputStream(is, new Inflater());
-                BlockUtils.inputStream2OutputStream(zis, decompressOut);
-            } finally {
-                try {
-                    if (null != is) {
-                        is.close();
-                    }
-                } catch (Throwable e) {
-                }
-                try {
-                    if (null != zis) {
-                        zis.close();
-                    }
-                } catch (Throwable e) {
-                }
-            }
-
-            final Blob decompressBlob = decompressOut.drainToBlob();
-            InputStream decompressIs = null;
-
-            try {
-                if (null != decompressBlob) {
-                    decompressIs = decompressBlob.genInputStream();
-                    if (null != decompressIs) {
-                        final byte[] bytes = new byte[decompressIs.available()];
-                        decompressIs.read(bytes);
-                        return bytes;
-                    }
-                }
-            } finally {
-                if (null != decompressBlob) {
-                    decompressBlob.release();
-                }
-                if (null != decompressIs) {
-                    try {
-                        decompressIs.close();
-                    } catch (Throwable e) {
-                    }
-                }
-            }
-        } else if (contentType.startsWith("application/json")) {
-            InputStream is = null;
-            try {
-                is = blob.genInputStream();
-                if (null != is) {
-                    final byte[] bytes = new byte[is.available()];
-                    is.read(bytes);
-                    return bytes;
-                }
-            } finally {
-                if (null != is) {
-                    try {
-                        is.close();
-                    } catch (Throwable e) {
-                    }
-                }
-            }
-        }
-        return null;
-    }
-    */
-
     private static void assignAllParams(
             final Map<Field, Params> field2params,
             final Object obj,
@@ -532,10 +514,6 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         } else {
             return flowPath;
         }
-    }
-
-    public void setBeanHolder(final BeanHolder beanHolder) throws BeansException {
-        this._beanHolder = beanHolder;
     }
 
     private static final class Params {

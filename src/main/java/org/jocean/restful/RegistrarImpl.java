@@ -86,7 +86,8 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
             ((UnitAgent)this._beanHolder).addUnitListener(new UnitListener() {
 
                 @Override
-                public void postUnitCreated(final ConfigurableApplicationContext appctx) {
+                public void postUnitCreated(final String unitPath, 
+                        final ConfigurableApplicationContext appctx) {
                     for ( String name : appctx.getBeanDefinitionNames() ) {
                         final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
                         try {
@@ -102,7 +103,8 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                 }
 
                 @Override
-                public void beforeUnitClosed(final ConfigurableApplicationContext appctx) {
+                public void beforeUnitClosed(final String unitPath,
+                        final ConfigurableApplicationContext appctx) {
                     for ( String name : appctx.getBeanDefinitionNames() ) {
                         final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
                         try {
@@ -115,7 +117,8 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                                     ExceptionUtils.exception2detail(e));
                         }
                     }
-                }});
+                }
+            });
         }
     }
 

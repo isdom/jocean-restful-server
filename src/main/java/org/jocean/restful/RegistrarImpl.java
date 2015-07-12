@@ -97,7 +97,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                                     register(cls);
                                 }
                             } catch (Exception e) {
-                                LOG.warn("exception when onUnitCreated, detail: {}", 
+                                LOG.warn("exception when postUnitCreated, detail: {}", 
                                         ExceptionUtils.exception2detail(e));
                             }
                         } else {
@@ -117,7 +117,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                                 unregister(cls);
                             }
                         } catch (Exception e) {
-                            LOG.warn("exception when onUnitClosed, detail: {}", 
+                            LOG.warn("exception when beforeUnitClosed, detail: {}", 
                                     ExceptionUtils.exception2detail(e));
                         }
                     }

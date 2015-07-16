@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd">
+    
+    <bean id="httpServer" class="org.jocean.http.server.impl.DefaultHttpServer"/>
+    
+    <bean id="agentServer" 
+        factory-bean="httpServer" 
+        factory-method="defineServer">
+        <constructor-arg>
+            <bean class="java.net.InetSocketAddress">
+                <constructor-arg value="${http.ip:0.0.0.0}"/>
+                <constructor-arg value="${http.port:8080}"/>
+            </bean>
+        </constructor-arg>
+        <constructor-arg>
+            <array>
+                <bean id="org.jocean.http.Feature.ENABLE_LOGGING" 
+                    class="org.springframework.beans.factory.config.FieldRetrievingFactoryBean"/>
+            </array>
+        </constructor-arg>
+    </bean>
+    
+    <bean id="registrar" class="org.jocean.restful.PackageRegistrar">
+        <constructor-arg ref="eventEngine"/>
+        <property name="scanPackage" value="${flow.package.base:package_not_exist}"/>
+        <property name="beanHolder" ref="${beanHolder.name:unitAgent}"/>
+    </bean>
+    
+    <bean id="jsonProvider" class="org.jocean.json.FastJSONProvider" />
+   
+    <bean id="trade" 
+        factory-bean="agentServer" 
+        factory-method="subscribe"
+        destroy-method="unsubscribe">
+        <constructor-arg>
+            <bean class="org.jocean.restful.trade.RestfulSubscriber">
+		        <constructor-arg ref="registrar" />
+		        <constructor-arg ref="jsonProvider" />
+            </bean>
+        </constructor-arg>
+    </bean>
+    
+    <bean id="registrarExporter" class="org.springframework.jmx.export.MBeanExporter"
+          lazy-init="false">
+        <property name="beans">
+            <map>
+                <entry key="org.jocean:name=flowRegistrar" 
+                    value-ref="registrar"/>
+            </map>
+        </property>
+    </bean>
+    
+</beans>

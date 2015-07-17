@@ -83,46 +83,59 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
     public void setBeanHolder(final BeanHolder beanHolder) throws BeansException {
         this._beanHolder = beanHolder;
         if (this._beanHolder instanceof UnitAgent) {
+            final UnitAgent agent = (UnitAgent)this._beanHolder;
+            final Pair<String,ConfigurableApplicationContext>[] units = agent.allUnit();
+            for (Pair<String,ConfigurableApplicationContext> unit : units) {
+                scanAndRegisterFlow(unit.second);
+            }
             ((UnitAgent)this._beanHolder).addUnitListener(new UnitListener() {
 
                 @Override
                 public void postUnitCreated(final String unitPath, 
                         final ConfigurableApplicationContext appctx) {
-                    for ( String name : appctx.getBeanDefinitionNames() ) {
-                        final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
-                        if (null!=def && null != def.getBeanClassName()) {
-                            try {
-                                final Class<?> cls = Class.forName(def.getBeanClassName());
-                                if (AbstractFlow.class.isAssignableFrom(cls)) {
-                                    register(cls);
-                                }
-                            } catch (Exception e) {
-                                LOG.warn("exception when postUnitCreated, detail: {}", 
-                                        ExceptionUtils.exception2detail(e));
-                            }
-                        } else {
-                            LOG.warn("bean named {} 's definition is empty.", name);
-                        }
-                    }
+                    scanAndRegisterFlow(appctx);
                 }
 
                 @Override
                 public void beforeUnitClosed(final String unitPath,
                         final ConfigurableApplicationContext appctx) {
-                    for ( String name : appctx.getBeanDefinitionNames() ) {
-                        final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
-                        try {
-                            final Class<?> cls = Class.forName(def.getBeanClassName());
-                            if (AbstractFlow.class.isAssignableFrom(cls)) {
-                                unregister(cls);
-                            }
-                        } catch (Exception e) {
-                            LOG.warn("exception when beforeUnitClosed, detail: {}", 
-                                    ExceptionUtils.exception2detail(e));
-                        }
-                    }
+                    unregisterAllFlow(appctx);
                 }
             });
+        }
+    }
+
+    private void scanAndRegisterFlow(final ConfigurableApplicationContext appctx) {
+        for ( String name : appctx.getBeanDefinitionNames() ) {
+            final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
+            if (null!=def && null != def.getBeanClassName()) {
+                try {
+                    final Class<?> cls = Class.forName(def.getBeanClassName());
+                    if (AbstractFlow.class.isAssignableFrom(cls)) {
+                        register(cls);
+                    }
+                } catch (Exception e) {
+                    LOG.warn("exception when postUnitCreated, detail: {}", 
+                            ExceptionUtils.exception2detail(e));
+                }
+            } else {
+                LOG.warn("bean named {} 's definition is empty.", name);
+            }
+        }
+    }
+
+    private void unregisterAllFlow(final ConfigurableApplicationContext appctx) {
+        for ( String name : appctx.getBeanDefinitionNames() ) {
+            final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
+            try {
+                final Class<?> cls = Class.forName(def.getBeanClassName());
+                if (AbstractFlow.class.isAssignableFrom(cls)) {
+                    unregister(cls);
+                }
+            } catch (Exception e) {
+                LOG.warn("exception when beforeUnitClosed, detail: {}", 
+                        ExceptionUtils.exception2detail(e));
+            }
         }
     }
 

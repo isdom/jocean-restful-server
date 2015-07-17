@@ -22,6 +22,7 @@ import java.io.UnsupportedEncodingException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -80,6 +81,18 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         this._engine = source;
     }
 
+    public String[] getRegisteredFlows() {
+        final List<String> flows = new ArrayList<>();
+        for ( Map.Entry<String, Context> entry : this._resources.entrySet()) {
+            flows.add(entry.getKey() + "-->" + entry.getValue());
+        }
+
+        for ( Map.Entry<String, Pair<PathMatcher, Context>> entry : this._pathmatchers.entries()) {
+            flows.add(entry.getKey() + "-->" + entry.getValue());
+        }
+        return flows.toArray(new String[0]);
+    }
+    
     public void setBeanHolder(final BeanHolder beanHolder) throws BeansException {
         this._beanHolder = beanHolder;
         if (this._beanHolder instanceof UnitAgent) {

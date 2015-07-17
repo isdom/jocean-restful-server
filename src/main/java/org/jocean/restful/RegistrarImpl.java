@@ -90,7 +90,9 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         for ( Map.Entry<String, Pair<PathMatcher, Context>> entry : this._pathmatchers.entries()) {
             flows.add(entry.getKey() + "-->" + entry.getValue());
         }
-        return flows.toArray(new String[0]);
+        final String[] flowsAsArray = flows.toArray(new String[0]);
+        Arrays.sort(flowsAsArray);
+        return flowsAsArray;
     }
     
     public void setBeanHolder(final BeanHolder beanHolder) throws BeansException {

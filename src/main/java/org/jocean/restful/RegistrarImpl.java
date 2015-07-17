@@ -119,7 +119,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                             ExceptionUtils.exception2detail(e));
                 }
             } else {
-                LOG.warn("bean named {} 's definition is empty.", name);
+                LOG.warn("postUnitCreated: bean named {} 's definition is empty.", name);
             }
         }
     }
@@ -127,14 +127,18 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
     private void unregisterAllFlow(final ConfigurableApplicationContext appctx) {
         for ( String name : appctx.getBeanDefinitionNames() ) {
             final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
-            try {
-                final Class<?> cls = Class.forName(def.getBeanClassName());
-                if (AbstractFlow.class.isAssignableFrom(cls)) {
-                    unregister(cls);
+            if (null!=def && null != def.getBeanClassName()) {
+                try {
+                    final Class<?> cls = Class.forName(def.getBeanClassName());
+                    if (AbstractFlow.class.isAssignableFrom(cls)) {
+                        unregister(cls);
+                    }
+                } catch (Exception e) {
+                    LOG.warn("exception when beforeUnitClosed, detail: {}", 
+                            ExceptionUtils.exception2detail(e));
                 }
-            } catch (Exception e) {
-                LOG.warn("exception when beforeUnitClosed, detail: {}", 
-                        ExceptionUtils.exception2detail(e));
+            } else {
+                LOG.warn("beforeUnitClosed: bean named {} 's definition is empty.", name);
             }
         }
     }

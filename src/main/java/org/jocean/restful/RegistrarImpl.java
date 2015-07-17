@@ -308,10 +308,15 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
             }
         }
 
-        if (null != params._queryParams && null != queryParamValues) {
+        if (null != params._queryParams ) {
             for (Field field : params._queryParams) {
-                injectParamValue(queryParamValues.get(field.getAnnotation(QueryParam.class).value()), 
-                        obj, field);
+                final String key = field.getAnnotation(QueryParam.class).value();
+                if (!"".equals(key) && null != queryParamValues) {
+                    injectParamValue(queryParamValues.get(key), obj, field);
+                }
+                if ("".equals(key)) {
+                    injectValueToField(rawQuery(request.getUri()), obj, field);
+                }
             }
         }
 
@@ -358,6 +363,15 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                             beanField, ExceptionUtils.exception2detail(e));
                 }
             }
+        }
+    }
+
+    private static String rawQuery(final String uri) {
+        final int pos = uri.indexOf('?');
+        if (-1 != pos) {
+            return uri.substring(pos+1);
+        } else {
+            return null;
         }
     }
 

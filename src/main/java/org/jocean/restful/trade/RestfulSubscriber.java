@@ -320,6 +320,22 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             }
                             writeAndFlushResponse(trade, request, representation.toString(), contentType);
                         }
+                        
+                        @Override
+                        public void output(final FullHttpResponse response) {
+                            safeDetachTask();
+                            if (LOG.isDebugEnabled()) {
+                                LOG.debug("send resp:{}", response);
+                            }
+                            final boolean keepAlive = isKeepAlive(request);
+                            if (keepAlive) {
+                                // Add keep alive header as per:
+                                // - http://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01.html#Connection
+                                response.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+                            }
+
+                            Observable.<HttpObject>just(response).subscribe(trade.responseObserver());
+                        }
                     });
                 } catch (Exception e) {
                     LOG.warn("exception when call flow({})'s setOutputReactor, detail:{}",
@@ -354,7 +370,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             final String content, 
             final String contentType) {
         // Decide whether to close the connection or not.
-        boolean keepAlive = isKeepAlive(request);
+        final boolean keepAlive = isKeepAlive(request);
         // Build the response object.
         final FullHttpResponse response = new DefaultFullHttpResponse(
                 HTTP_1_1, (null != content ? OK : NO_CONTENT),

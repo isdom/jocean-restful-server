@@ -348,6 +348,22 @@ public class RestfulFlow extends AbstractFlow<RestfulFlow> {
                     writeAndFlushResponse(representation.toString(), contentType);
                     notifyTaskComplete();
                 }
+
+                @Override
+                public void output(final FullHttpResponse response) {
+                    safeDetachTask();
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("send resp:{}", response);
+                    }
+                    boolean keepAlive = isKeepAlive(_requestWrapper.request());
+                    if (!keepAlive) {
+                        // Write the response and close.
+                        _channelCtx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+                    } else {
+                        _channelCtx.writeAndFlush(response);
+                    }
+                    notifyTaskComplete();
+                }
             });
         } catch (Exception e) {
             LOG.warn("exception when call flow({})'s setOutputReactor, detail:{}",

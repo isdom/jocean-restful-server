@@ -49,11 +49,11 @@ import org.jocean.event.api.EventEngine;
 import org.jocean.event.api.annotation.OnEvent;
 import org.jocean.event.api.internal.DefaultInvoker;
 import org.jocean.event.api.internal.EventInvoker;
-import org.jocean.idiom.BeanHolder;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.ReflectUtils;
+import org.jocean.j2se.spring.SpringBeanHolder;
 import org.jocean.j2se.unit.UnitAgent;
 import org.jocean.j2se.unit.UnitListener;
 import org.slf4j.Logger;
@@ -95,15 +95,15 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         return flowsAsArray;
     }
     
-    public void setBeanHolder(final BeanHolder beanHolder) throws BeansException {
+    public void setBeanHolder(final SpringBeanHolder beanHolder) throws BeansException {
         this._beanHolder = beanHolder;
+        final ConfigurableApplicationContext[] ctxs = beanHolder.allApplicationContext();
+        for (ConfigurableApplicationContext ctx : ctxs) {
+            scanAndRegisterFlow(ctx);
+        }
         if (this._beanHolder instanceof UnitAgent) {
             final UnitAgent agent = (UnitAgent)this._beanHolder;
-            final Pair<String,ConfigurableApplicationContext>[] units = agent.allUnit();
-            for (Pair<String,ConfigurableApplicationContext> unit : units) {
-                scanAndRegisterFlow(unit.second);
-            }
-            ((UnitAgent)this._beanHolder).addUnitListener(new UnitListener() {
+            agent.addUnitListener(new UnitListener() {
 
                 @Override
                 public void postUnitCreated(final String unitPath, 
@@ -657,6 +657,6 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
     private final Multimap<String, Pair<PathMatcher, Context>> _pathmatchers = ArrayListMultimap.create();
 
-    private BeanHolder _beanHolder;
+    private SpringBeanHolder _beanHolder;
     private final EventEngine _engine;
 }

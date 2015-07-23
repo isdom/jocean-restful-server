@@ -23,9 +23,8 @@
         </constructor-arg>
     </bean>
     
-    <bean id="registrar" class="org.jocean.restful.PackageRegistrar">
+    <bean id="registrar" class="org.jocean.restful.RegistrarImpl">
         <constructor-arg ref="eventEngine"/>
-        <property name="scanPackage" value="${flow.package.base:package_not_exist}"/>
         <property name="beanHolder" ref="${beanHolder.name:unitAgent}"/>
     </bean>
     

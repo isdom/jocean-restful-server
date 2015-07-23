@@ -60,6 +60,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
 
 import com.alibaba.fastjson.JSON;
@@ -97,9 +98,9 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
     
     public void setBeanHolder(final SpringBeanHolder beanHolder) throws BeansException {
         this._beanHolder = beanHolder;
-        final ConfigurableApplicationContext[] ctxs = beanHolder.allApplicationContext();
-        for (ConfigurableApplicationContext ctx : ctxs) {
-            scanAndRegisterFlow(ctx);
+        final ConfigurableListableBeanFactory[] factorys = beanHolder.allBeanFactory();
+        for (ConfigurableListableBeanFactory factory : factorys) {
+            scanAndRegisterFlow(factory);
         }
         if (this._beanHolder instanceof UnitAgent) {
             final UnitAgent agent = (UnitAgent)this._beanHolder;
@@ -108,21 +109,21 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                 @Override
                 public void postUnitCreated(final String unitPath, 
                         final ConfigurableApplicationContext appctx) {
-                    scanAndRegisterFlow(appctx);
+                    scanAndRegisterFlow(appctx.getBeanFactory());
                 }
 
                 @Override
                 public void beforeUnitClosed(final String unitPath,
                         final ConfigurableApplicationContext appctx) {
-                    unregisterAllFlow(appctx);
+                    unregisterAllFlow(appctx.getBeanFactory());
                 }
             });
         }
     }
 
-    private void scanAndRegisterFlow(final ConfigurableApplicationContext appctx) {
-        for ( String name : appctx.getBeanDefinitionNames() ) {
-            final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
+    private void scanAndRegisterFlow(final ConfigurableListableBeanFactory factory) {
+        for ( String name : factory.getBeanDefinitionNames() ) {
+            final BeanDefinition def = factory.getBeanDefinition(name);
             if (null!=def && null != def.getBeanClassName()) {
                 try {
                     final Class<?> cls = Class.forName(def.getBeanClassName());
@@ -139,9 +140,9 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         }
     }
 
-    private void unregisterAllFlow(final ConfigurableApplicationContext appctx) {
-        for ( String name : appctx.getBeanDefinitionNames() ) {
-            final BeanDefinition def = appctx.getBeanFactory().getBeanDefinition(name);
+    private void unregisterAllFlow(final ConfigurableListableBeanFactory factory) {
+        for ( String name : factory.getBeanDefinitionNames() ) {
+            final BeanDefinition def = factory.getBeanDefinition(name);
             if (null!=def && null != def.getBeanClassName()) {
                 try {
                     final Class<?> cls = Class.forName(def.getBeanClassName());

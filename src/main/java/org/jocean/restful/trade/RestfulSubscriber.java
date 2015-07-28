@@ -296,7 +296,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             if (LOG.isDebugEnabled()) {
                                 LOG.debug("send resp:{}", responseJson);
                             }
-                            writeAndFlushResponse(trade, request, responseJson, APPLICATION_JSON_CHARSET_UTF_8);
+                            writeAndFlushResponse(trade, request, responseJson, _defaultContentType);
                         }
 
                         @Override
@@ -307,7 +307,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             if (LOG.isDebugEnabled()) {
                                 LOG.debug("send resp:{}", responseJson);
                             }
-                            writeAndFlushResponse(trade, request, responseJson, APPLICATION_JSON_CHARSET_UTF_8);
+                            writeAndFlushResponse(trade, request, responseJson, _defaultContentType);
                         }
 
                         @Override
@@ -411,8 +411,14 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
           && req.headers().get(HttpHeaders.Names.CONTENT_TYPE).startsWith(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED);
     }
 
+    public void setDefaultContentType(final String defaultContentType) {
+        this._defaultContentType = defaultContentType;
+    }
+    
     private final HttpDataFactory HTTP_DATA_FACTORY =
             new DefaultHttpDataFactory(false);  // DO NOT use Disk
     private final Registrar<?> _registrar;
     private final JSONProvider _jsonProvider;
+    
+    private String _defaultContentType = APPLICATION_JSON_CHARSET_UTF_8;
 }

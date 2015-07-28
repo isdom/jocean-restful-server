@@ -38,6 +38,7 @@
             <bean class="org.jocean.restful.trade.RestfulSubscriber">
 		        <constructor-arg ref="registrar" />
 		        <constructor-arg ref="jsonProvider" />
+		        <property name="defaultContentType" value="${restful.default.contenttype:application/json; charset=UTF-8}"/>
             </bean>
         </constructor-arg>
     </bean>

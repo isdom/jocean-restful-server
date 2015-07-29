@@ -334,6 +334,8 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                                 response.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
                             }
 
+                            addExtraHeaders(response);
+
                             Observable.<HttpObject>just(response).subscribe(trade.responseObserver());
                         }
                     });
@@ -391,9 +393,19 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
         response.headers().set(HttpHeaders.Names.CACHE_CONTROL, HttpHeaders.Values.NO_STORE);
         response.headers().set(HttpHeaders.Names.PRAGMA, HttpHeaders.Values.NO_CACHE);
 
+        addExtraHeaders(response);
+        
         Observable.<HttpObject>just(response).subscribe(trade.responseObserver());
 
         return keepAlive;
+    }
+
+    private void addExtraHeaders(final FullHttpResponse response) {
+        if (null!=this._extraHeaders) {
+            for (Map.Entry<String, String> entry : this._extraHeaders.entrySet()) {
+                response.headers().set(entry.getKey(), entry.getValue());
+            }
+        }
     }
     
     private static String toQueryString(final ByteBuf content)
@@ -415,10 +427,15 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
         this._defaultContentType = defaultContentType;
     }
     
+    public void setExtraHeaders(final Map<String, String> extraHeaders) {
+        this._extraHeaders = extraHeaders;
+    }
+
     private final HttpDataFactory HTTP_DATA_FACTORY =
             new DefaultHttpDataFactory(false);  // DO NOT use Disk
     private final Registrar<?> _registrar;
     private final JSONProvider _jsonProvider;
     
     private String _defaultContentType = APPLICATION_JSON_CHARSET_UTF_8;
+    private Map<String, String> _extraHeaders;
 }

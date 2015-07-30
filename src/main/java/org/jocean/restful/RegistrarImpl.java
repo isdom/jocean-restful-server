@@ -83,19 +83,42 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
     }
 
     public String[] getRegisteredFlows() {
-        final List<String> flows = new ArrayList<>();
+        final Multimap<String, Pair<String,Context>> apis = ArrayListMultimap.create(); 
+        
         for ( Map.Entry<String, Context> entry : this._resources.entrySet()) {
-            flows.add(entry.getKey() + "-->" + entry.getValue());
+            Pair<String,String> pathAndMethod = genPathAndMethod(entry.getKey());
+            apis.put(pathAndMethod.getFirst(), Pair.of(pathAndMethod.getSecond(), entry.getValue()));
         }
 
         for ( Map.Entry<String, Pair<PathMatcher, Context>> entry : this._pathmatchers.entries()) {
-            flows.add(entry.getKey() + "-->" + entry.getValue());
+            Pair<String,String> pathAndMethod = genPathAndMethod(entry.getKey());
+            apis.put(pathAndMethod.getFirst(), Pair.of(pathAndMethod.getSecond(), entry.getValue().getSecond()));
+//            flows.add(entry.getKey() + "-->" + entry.getValue());
         }
+        final List<String> flows = new ArrayList<>();
+        for ( Map.Entry<String, Collection<Pair<String, Context>>> entry 
+                : apis.asMap().entrySet()) {
+            final StringBuilder sb = new StringBuilder();
+            sb.append(entry.getKey());
+            sb.append("-->");
+            for (Pair<String, Context> pair : entry.getValue()) {
+                sb.append(pair.getFirst());
+                sb.append("/");
+            }
+            sb.append(entry.getValue().iterator().next().getSecond()._cls);
+            flows.add(sb.toString());
+        }
+        
         final String[] flowsAsArray = flows.toArray(new String[0]);
         Arrays.sort(flowsAsArray);
         return flowsAsArray;
     }
     
+    private static Pair<String, String> genPathAndMethod(final String key) {
+        final String[] cells = key.split(":");
+        return Pair.of(cells[1], cells[0]);
+    }
+
     public void setBeanHolder(final SpringBeanHolder beanHolder) throws BeansException {
         this._beanHolder = beanHolder;
         final ConfigurableListableBeanFactory[] factorys = beanHolder.allBeanFactory();

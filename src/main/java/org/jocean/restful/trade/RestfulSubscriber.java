@@ -322,7 +322,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                         }
                         
                         @Override
-                        public void output(final FullHttpResponse response) {
+                        public void outputAsHttpResponse(final FullHttpResponse response) {
                             safeDetachTask();
                             if (LOG.isDebugEnabled()) {
                                 LOG.debug("send resp:{}", response);

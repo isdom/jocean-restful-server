@@ -17,5 +17,5 @@ public interface OutputReactor {
     
     public void output(final Object representation, final String outerName);
     
-    public void output(final FullHttpResponse response);
+    public void outputAsHttpResponse(final FullHttpResponse response);
 }

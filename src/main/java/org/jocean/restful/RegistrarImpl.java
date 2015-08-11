@@ -150,7 +150,8 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
             if (null!=def && null != def.getBeanClassName()) {
                 try {
                     final Class<?> cls = Class.forName(def.getBeanClassName());
-                    if (AbstractFlow.class.isAssignableFrom(cls)) {
+                    if (AbstractFlow.class.isAssignableFrom(cls)
+                       && OutputSource.class.isAssignableFrom(cls)) {
                         register(cls);
                     }
                 } catch (Exception e) {

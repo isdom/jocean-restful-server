@@ -155,11 +155,11 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                         register(cls);
                     }
                 } catch (Exception e) {
-                    LOG.warn("exception when postUnitCreated, detail: {}", 
+                    LOG.warn("exception when scanAndRegisterFlow, detail: {}", 
                             ExceptionUtils.exception2detail(e));
                 }
             } else {
-                LOG.warn("postUnitCreated: bean named {} 's definition is empty.", name);
+                LOG.warn("scanAndRegisterFlow: bean named {} 's definition is empty.", name);
             }
         }
     }
@@ -174,11 +174,11 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                         unregister(cls);
                     }
                 } catch (Exception e) {
-                    LOG.warn("exception when beforeUnitClosed, detail: {}", 
+                    LOG.warn("exception when unregisterAllFlow, detail: {}", 
                             ExceptionUtils.exception2detail(e));
                 }
             } else {
-                LOG.warn("beforeUnitClosed: bean named {} 's definition is empty.", name);
+                LOG.warn("unregisterAllFlow: bean named {} 's definition is empty.", name);
             }
         }
     }
@@ -280,8 +280,13 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         final Object flow = checkNotNull(this._beanHolder.getBean(ctx._cls),
                 "can not build flow for type(%s)", ctx._cls);
         final Map<String, List<String>> queryValues = unionQueryValues(decoder.parameters(), formParameters);
-        assignAllParams(ctx._field2params, flow, ctx._selfParams,
-                pathParamValues, queryValues, request,
+        assignAllParams(
+                ctx._field2params, 
+                flow, 
+                ctx._selfParams,
+                pathParamValues, 
+                queryValues, 
+                request,
                 decodeContent(content)
                 );
 
@@ -394,8 +399,13 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                         beanField.set(obj, bean);
                         final Params beanParams = field2params.get(beanField);
                         if (null != beanParams) {
-                            assignAllParams(field2params, bean, beanParams,
-                                    pathParamValues, queryParamValues, request, bytes);
+                            assignAllParams(field2params, 
+                                    bean, 
+                                    beanParams,
+                                    pathParamValues, 
+                                    queryParamValues, 
+                                    request, 
+                                    bytes);
                         }
                     }
                 } catch (Exception e) {
@@ -422,13 +432,25 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
      */
     private static Object createObjectBy(final byte[] bytes, final Field beanField) {
         if (null != bytes) {
-            if (LOG.isDebugEnabled()) {
-                try {
-                    LOG.debug("createObjectBy: {}", new String(bytes, "UTF-8"));
-                } catch (UnsupportedEncodingException e) {
+            if (beanField.getType().equals(byte[].class)) {
+                if (LOG.isDebugEnabled()) {
+                    try {
+                        LOG.debug("assign byte array with: {}", new String(bytes, "UTF-8"));
+                    } catch (UnsupportedEncodingException e) {
+                        LOG.debug("assign byte array with: {}", Arrays.toString(bytes));
+                    }
                 }
+                return bytes;
+            } else {
+                if (LOG.isDebugEnabled()) {
+                    try {
+                        LOG.debug("createObjectBy: {}", new String(bytes, "UTF-8"));
+                    } catch (UnsupportedEncodingException e) {
+                        LOG.debug("createObjectBy: {}", Arrays.toString(bytes));
+                    }
+                }
+                return JSON.parseObject(bytes, beanField.getType());
             }
-            return JSON.parseObject(bytes, beanField.getType());
         } else {
             try {
                 return beanField.getType().newInstance();

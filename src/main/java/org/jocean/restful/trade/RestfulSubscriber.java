@@ -420,7 +420,8 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
     private static boolean isPostWithForm(final FullHttpRequest req) {
         return req.getMethod().equals(HttpMethod.POST)
           && req.headers().contains(HttpHeaders.Names.CONTENT_TYPE)
-          && req.headers().get(HttpHeaders.Names.CONTENT_TYPE).startsWith(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED);
+          && req.headers().get(HttpHeaders.Names.CONTENT_TYPE)
+              .startsWith(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED);
     }
 
     public void setDefaultContentType(final String defaultContentType) {

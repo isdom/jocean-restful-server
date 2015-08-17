@@ -9,7 +9,6 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.EmptyByteBuf;
@@ -375,16 +374,18 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
         final boolean keepAlive = isKeepAlive(request);
         // Build the response object.
         final FullHttpResponse response = new DefaultFullHttpResponse(
-                HTTP_1_1, (null != content ? OK : NO_CONTENT),
+                request.getProtocolVersion(), 
+                (null != content ? OK : NO_CONTENT),
                 (null != content ? Unpooled.copiedBuffer(content, CharsetUtil.UTF_8) : Unpooled.buffer(0)));
 
         if (null != content) {
             response.headers().set(CONTENT_TYPE, contentType);
         }
 
+        // Add 'Content-Length' header only for a keep-alive connection.
+        response.headers().set(CONTENT_LENGTH, response.content().readableBytes());
+        
         if (keepAlive) {
-            // Add 'Content-Length' header only for a keep-alive connection.
-            response.headers().set(CONTENT_LENGTH, response.content().readableBytes());
             // Add keep alive header as per:
             // - http://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01.html#Connection
             response.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);

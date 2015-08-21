@@ -4,6 +4,8 @@
        xsi:schemaLocation="http://www.springframework.org/schema/beans
         http://www.springframework.org/schema/beans/spring-beans.xsd">
     
+    <bean id="httpfeatures" class="java.util.concurrent.CopyOnWriteArrayList" />
+        
     <bean id="agentServer" 
         factory-bean="httpServer" 
         factory-method="defineServer">
@@ -14,10 +16,9 @@
             </bean>
         </constructor-arg>
         <constructor-arg>
-            <array>
-                <bean id="org.jocean.http.Feature.ENABLE_LOGGING" 
-                    class="org.springframework.beans.factory.config.FieldRetrievingFactoryBean"/>
-            </array>
+            <bean class="org.jocean.http.util.FeaturesBuilder">
+                <constructor-arg ref="httpfeatures"/>
+            </bean>
         </constructor-arg>
     </bean>
     
@@ -30,8 +31,7 @@
    
     <bean id="extraHeaders" class="java.util.concurrent.ConcurrentHashMap"/>
     
-    <bean id="trade" 
-        factory-bean="agentServer" 
+    <bean factory-bean="agentServer" 
         factory-method="subscribe"
         destroy-method="unsubscribe">
         <constructor-arg>

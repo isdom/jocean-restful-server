@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.ws.rs.BeanParam;
 import javax.ws.rs.CookieParam;
@@ -46,6 +47,8 @@ import javax.ws.rs.QueryParam;
 import org.jocean.event.api.AbstractFlow;
 import org.jocean.event.api.BizStep;
 import org.jocean.event.api.EventEngine;
+import org.jocean.event.api.EventReceiver;
+import org.jocean.event.api.FlowLifecycleListener;
 import org.jocean.event.api.annotation.OnEvent;
 import org.jocean.event.api.internal.DefaultInvoker;
 import org.jocean.event.api.internal.EventInvoker;
@@ -82,7 +85,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         this._engine = source;
     }
 
-    public String[] getRegisteredFlows() {
+    public String[] getFlows() {
         final Multimap<String, Pair<String,Context>> apis = ArrayListMultimap.create(); 
         
         for ( Map.Entry<String, Context> entry : this._resources.entrySet()) {
@@ -99,13 +102,17 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         for ( Map.Entry<String, Collection<Pair<String, Context>>> entry 
                 : apis.asMap().entrySet()) {
             final StringBuilder sb = new StringBuilder();
+            final Context ctx = entry.getValue().iterator().next().getSecond();
+            sb.append("[");
+            sb.append(ctx.getExecutedCount());
+            sb.append("]");
             sb.append(entry.getKey());
             sb.append("-->");
             for (Pair<String, Context> pair : entry.getValue()) {
                 sb.append(pair.getFirst());
                 sb.append("/");
             }
-            sb.append(entry.getValue().iterator().next().getSecond()._cls);
+            sb.append(ctx._cls);
             flows.add(sb.toString());
         }
         
@@ -296,7 +303,17 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
         this._engine.create(flow.toString(),
                 new BizStep("INIT").handler(invoker).freeze(),
-                flow);
+                flow,
+                new FlowLifecycleListener() {
+                    @Override
+                    public void afterEventReceiverCreated(final EventReceiver receiver)
+                            throws Exception {
+                    }
+
+                    @Override
+                    public void afterFlowDestroy() throws Exception {
+                        ctx.incExecuted();
+                    }});
 
         if (LOG.isDebugEnabled()) {
             LOG.debug("Registrar: create flow({}) with init method({}), init event({})",
@@ -690,7 +707,16 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         private final Method _init;
         private final Params _selfParams;
         private final Map<Field, Params> _field2params;
+        private final AtomicInteger _executeCounter = new AtomicInteger(0);
 
+        public void incExecuted() {
+            this._executeCounter.incrementAndGet();
+        }
+        
+        public int getExecutedCount() {
+            return this._executeCounter.get();
+        }
+        
         @Override
         public String toString() {
             return "Context [_cls=" + _cls + ", _init=" + _init

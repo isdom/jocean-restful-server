@@ -48,7 +48,7 @@
           lazy-init="false">
         <property name="beans">
             <map>
-                <entry key="org.jocean:name=flowRegistrar" 
+                <entry key="org.jocean:name=flows" 
                     value-ref="registrar"/>
             </map>
         </property>

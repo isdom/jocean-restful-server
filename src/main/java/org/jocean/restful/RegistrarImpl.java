@@ -53,9 +53,11 @@ import org.jocean.event.api.annotation.OnEvent;
 import org.jocean.event.api.internal.DefaultInvoker;
 import org.jocean.event.api.internal.EventInvoker;
 import org.jocean.idiom.ExceptionUtils;
+import org.jocean.idiom.Function;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.ReflectUtils;
+import org.jocean.idiom.SimpleCache;
 import org.jocean.j2se.spring.SpringBeanHolder;
 import org.jocean.j2se.unit.UnitAgent;
 import org.jocean.j2se.unit.UnitListener;
@@ -104,7 +106,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
             final StringBuilder sb = new StringBuilder();
             final Context ctx = entry.getValue().iterator().next().getSecond();
             sb.append("[");
-            sb.append(ctx.getExecutedCount());
+            sb.append(getExecutedCount(ctx._cls));
             sb.append("]");
             sb.append(entry.getKey());
             sb.append("-->");
@@ -312,7 +314,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
                     @Override
                     public void afterFlowDestroy() throws Exception {
-                        ctx.incExecuted();
+                        incExecutedCount(ctx._cls);
                     }});
 
         if (LOG.isDebugEnabled()) {
@@ -707,16 +709,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         private final Method _init;
         private final Params _selfParams;
         private final Map<Field, Params> _field2params;
-        private final AtomicInteger _executeCounter = new AtomicInteger(0);
 
-        public void incExecuted() {
-            this._executeCounter.incrementAndGet();
-        }
-        
-        public int getExecutedCount() {
-            return this._executeCounter.get();
-        }
-        
         @Override
         public String toString() {
             return "Context [_cls=" + _cls + ", _init=" + _init
@@ -725,6 +718,21 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         }
     }
 
+    private void incExecutedCount(final Class<?> cls) {
+        this._executedCounters.get(cls).incrementAndGet();
+    }
+    
+    private int getExecutedCount(final Class<?> cls) {
+        return this._executedCounters.get(cls).get();
+    }
+    
+    private final SimpleCache<Class<?>, AtomicInteger> _executedCounters = new SimpleCache<>(
+            new Function<Class<?>, AtomicInteger>() {
+        @Override
+        public AtomicInteger apply(final Class<?> input) {
+            return new AtomicInteger(0);
+        }});
+    
     private final Map<String, Context> _resources =
             new HashMap<String, Context>();
 

@@ -58,7 +58,10 @@ import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.ReflectUtils;
 import org.jocean.idiom.SimpleCache;
+import org.jocean.idiom.StopWatch;
 import org.jocean.j2se.spring.SpringBeanHolder;
+import org.jocean.j2se.stats.TIMemos;
+import org.jocean.j2se.stats.TIMemos.TIMemoWithOutput;
 import org.jocean.j2se.unit.UnitAgent;
 import org.jocean.j2se.unit.UnitListener;
 import org.slf4j.Logger;
@@ -115,6 +118,13 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                 sb.append("/");
             }
             sb.append(ctx._cls);
+            final List<String> ttls = new ArrayList<>();
+            fetchExecutedInterval(ctx._cls, ttls);
+            for (String ttl : ttls) {
+                sb.append('\n');
+                sb.append('\t');
+                sb.append(ttl);
+            }
             flows.add(sb.toString());
         }
         
@@ -303,6 +313,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
         final String event = invoker.getBindedEvent();
 
+        final StopWatch clock = new StopWatch();
         this._engine.create(flow.toString(),
                 new BizStep("INIT").handler(invoker).freeze(),
                 flow,
@@ -315,6 +326,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                     @Override
                     public void afterFlowDestroy() throws Exception {
                         incExecutedCount(ctx._cls);
+                        recordExecutedInterval(ctx._cls, clock);
                     }});
 
         if (LOG.isDebugEnabled()) {
@@ -726,11 +738,26 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         return this._executedCounters.get(cls).get();
     }
     
+    private void recordExecutedInterval(final Class<?> cls, final StopWatch clock) {
+        this._executedTIMemos.get(cls).recordInterval(clock.stopAndRestart());
+    }
+    
+    private void fetchExecutedInterval(final Class<?> cls, final List<String> infos) {
+        this._executedTIMemos.get(cls).addInfoList(infos);
+    }
+    
     private final SimpleCache<Class<?>, AtomicInteger> _executedCounters = new SimpleCache<>(
             new Function<Class<?>, AtomicInteger>() {
         @Override
         public AtomicInteger apply(final Class<?> input) {
             return new AtomicInteger(0);
+        }});
+    
+    private final SimpleCache<Class<?>, TIMemoWithOutput> _executedTIMemos = new SimpleCache<>(
+            new Function<Class<?>, TIMemoWithOutput>() {
+        @Override
+        public TIMemoWithOutput apply(final Class<?> input) {
+            return TIMemos.memo_10ms_30S();
         }});
     
     private final Map<String, Context> _resources =

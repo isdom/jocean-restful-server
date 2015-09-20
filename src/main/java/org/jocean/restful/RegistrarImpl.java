@@ -61,7 +61,7 @@ import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.StopWatch;
 import org.jocean.j2se.spring.SpringBeanHolder;
 import org.jocean.j2se.stats.TIMemos;
-import org.jocean.j2se.stats.TIMemos.TIMemoWithOutput;
+import org.jocean.j2se.stats.TIMemos.EmitableTIMemo;
 import org.jocean.j2se.unit.UnitAgent;
 import org.jocean.j2se.unit.UnitListener;
 import org.slf4j.Logger;
@@ -70,6 +70,8 @@ import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
+
+import rx.functions.Action1;
 
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.ArrayListMultimap;
@@ -118,13 +120,13 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                 sb.append("/");
             }
             sb.append(ctx._cls);
-            final List<String> ttls = new ArrayList<>();
-            fetchExecutedInterval(ctx._cls, ttls);
-            for (String ttl : ttls) {
-                sb.append('\n');
-                sb.append('\t');
-                sb.append(ttl);
-            }
+            fetchExecutedInterval(ctx._cls, new Action1<String>() {
+                @Override
+                public void call(final String ttl) {
+                    sb.append('\n');
+                    sb.append('\t');
+                    sb.append(ttl);
+                }});
             flows.add(sb.toString());
         }
         
@@ -742,8 +744,8 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         this._executedTIMemos.get(cls).recordInterval(clock.stopAndRestart());
     }
     
-    private void fetchExecutedInterval(final Class<?> cls, final List<String> infos) {
-        this._executedTIMemos.get(cls).addInfoList(infos);
+    private void fetchExecutedInterval(final Class<?> cls, final Action1<String> receptor) {
+        this._executedTIMemos.get(cls).emit(receptor);
     }
     
     private final SimpleCache<Class<?>, AtomicInteger> _executedCounters = new SimpleCache<>(
@@ -753,10 +755,10 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
             return new AtomicInteger(0);
         }});
     
-    private final SimpleCache<Class<?>, TIMemoWithOutput> _executedTIMemos = new SimpleCache<>(
-            new Function<Class<?>, TIMemoWithOutput>() {
+    private final SimpleCache<Class<?>, EmitableTIMemo> _executedTIMemos = new SimpleCache<>(
+            new Function<Class<?>, EmitableTIMemo>() {
         @Override
-        public TIMemoWithOutput apply(final Class<?> input) {
+        public EmitableTIMemo apply(final Class<?> input) {
             return TIMemos.memo_10ms_30S();
         }});
     

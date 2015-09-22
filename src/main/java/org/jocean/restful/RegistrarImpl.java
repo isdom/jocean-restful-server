@@ -25,6 +25,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -131,7 +132,11 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         }
         
         final String[] flowsAsArray = flows.toArray(new String[0]);
-        Arrays.sort(flowsAsArray);
+        Arrays.sort(flowsAsArray, new Comparator<String>() {
+            @Override
+            public int compare(final String o1, final String o2) {
+                return o2.compareTo(o1);
+            }});
         return flowsAsArray;
     }
     

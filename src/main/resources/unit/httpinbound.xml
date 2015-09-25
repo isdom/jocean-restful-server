@@ -5,7 +5,11 @@
         http://www.springframework.org/schema/beans/spring-beans.xsd">
     
     <bean id="httpfeatures" class="java.util.concurrent.CopyOnWriteArrayList" />
-        
+
+    <bean id="inboundIndicator" class="org.jocean.restful.mbean.InboundIndicator">
+        <property name="mbeanName" value="${inbound.name:name=inbound}"/>
+    </bean>
+    
     <bean id="agentServer" 
         factory-bean="httpServer" 
         factory-method="defineServer">
@@ -19,6 +23,11 @@
             <bean class="org.jocean.http.util.FeaturesBuilder">
                 <constructor-arg ref="httpfeatures"/>
             </bean>
+        </constructor-arg>
+        <constructor-arg>
+            <array>
+                <ref bean="inboundIndicator"/>
+            </array>
         </constructor-arg>
     </bean>
     

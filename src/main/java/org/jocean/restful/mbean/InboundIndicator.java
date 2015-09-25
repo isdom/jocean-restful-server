@@ -30,6 +30,11 @@ public class InboundIndicator extends Feature.AbstractFeature0
     }
 
     @Override
+    public int getPriority() {
+        return this._priority;
+    }
+    
+    @Override
     public void setServerChannel(final ServerChannel serverChannel) {
         this._port = ((InetSocketAddress)serverChannel.localAddress()).getPort();
         this._register.registerMBean(this._mbeanName, this);
@@ -48,6 +53,10 @@ public class InboundIndicator extends Feature.AbstractFeature0
         this._pathPattern = pathPattern;
     }
 
+    public void setPriority(final int priority) {
+        this._priority = priority;
+    }
+    
     private static final String _HOSTNAME;
     private volatile int _port;
     
@@ -63,4 +72,5 @@ public class InboundIndicator extends Feature.AbstractFeature0
     private MBeanRegister _register;
     private String _mbeanName;
     private String _pathPattern;
+    private int _priority;
 }

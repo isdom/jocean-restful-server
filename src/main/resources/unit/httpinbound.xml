@@ -25,7 +25,7 @@
             </bean>
         </constructor-arg>
         <constructor-arg>
-            <array>
+            <array value-type="org.jocean.http.Feature">
                 <ref bean="inboundIndicator"/>
             </array>
         </constructor-arg>

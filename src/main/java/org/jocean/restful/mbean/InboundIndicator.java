@@ -6,11 +6,13 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 
+import org.jocean.http.Feature;
 import org.jocean.http.util.Nettys.ServerChannelAware;
 import org.jocean.j2se.jmx.MBeanRegister;
 import org.jocean.j2se.jmx.MBeanRegisterAware;
 
-public class InboundIndicator implements InboundMXBean, ServerChannelAware, MBeanRegisterAware {
+public class InboundIndicator extends Feature.AbstractFeature0 
+    implements InboundMXBean, ServerChannelAware, MBeanRegisterAware {
 
     @Override
     public String getHost() {

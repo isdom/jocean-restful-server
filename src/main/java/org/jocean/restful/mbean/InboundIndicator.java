@@ -23,6 +23,11 @@ public class InboundIndicator extends Feature.AbstractFeature0
     public int getPort() {
         return this._port;
     }
+    
+    @Override
+    public String getPathPattern() {
+        return this._pathPattern;
+    }
 
     @Override
     public void setServerChannel(final ServerChannel serverChannel) {
@@ -39,6 +44,10 @@ public class InboundIndicator extends Feature.AbstractFeature0
         this._mbeanName = mbeanName;
     }
     
+    public void setPathPattern(final String pathPattern) {
+        this._pathPattern = pathPattern;
+    }
+
     private static final String _HOSTNAME;
     private volatile int _port;
     
@@ -53,4 +62,5 @@ public class InboundIndicator extends Feature.AbstractFeature0
     
     private MBeanRegister _register;
     private String _mbeanName;
+    private String _pathPattern;
 }

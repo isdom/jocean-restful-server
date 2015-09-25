@@ -8,6 +8,7 @@
 
     <bean id="inboundIndicator" class="org.jocean.restful.mbean.InboundIndicator">
         <property name="mbeanName" value="${inbound.name:name=inbound}"/>
+        <property name="pathPattern" value="${inbound.pathpattern}"/>
     </bean>
     
     <bean id="agentServer" 
@@ -16,7 +17,7 @@
         <constructor-arg>
             <bean class="java.net.InetSocketAddress">
                 <constructor-arg value="${http.ip:0.0.0.0}"/>
-                <constructor-arg value="${http.port:8080}"/>
+                <constructor-arg value="${http.port:0}"/>
             </bean>
         </constructor-arg>
         <constructor-arg>

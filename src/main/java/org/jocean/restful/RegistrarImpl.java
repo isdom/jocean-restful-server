@@ -89,6 +89,12 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
     private static final Logger LOG
             = LoggerFactory.getLogger(RegistrarImpl.class);
 
+    private static final Comparator<String> DESC_COMPARATOR = new Comparator<String>() {
+        @Override
+        public int compare(final String o1, final String o2) {
+            return o2.compareTo(o1);
+        }};
+        
     public RegistrarImpl(final EventEngine source) {
         this._engine = source;
     }
@@ -132,11 +138,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         }
         
         final String[] flowsAsArray = flows.toArray(new String[0]);
-        Arrays.sort(flowsAsArray, new Comparator<String>() {
-            @Override
-            public int compare(final String o1, final String o2) {
-                return o2.compareTo(o1);
-            }});
+        Arrays.sort(flowsAsArray, DESC_COMPARATOR);
         return flowsAsArray;
     }
     
@@ -334,6 +336,11 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                     public void afterFlowDestroy() throws Exception {
                         incExecutedCount(ctx._cls);
                         recordExecutedInterval(ctx._cls, clock);
+                        if (LOG.isDebugEnabled()) {
+                            LOG.debug("{}'s afterFlowDestroy, so record biz count: {}", 
+                                    getExecutedCount(ctx._cls));
+                            LOG.debug("and all flows biz record:\n{}", Arrays.toString(getFlows()));
+                        }
                     }});
 
         if (LOG.isDebugEnabled()) {

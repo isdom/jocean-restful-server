@@ -338,7 +338,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                         recordExecutedInterval(ctx._cls, clock);
                         if (LOG.isDebugEnabled()) {
                             LOG.debug("{}'s afterFlowDestroy, so record biz count: {}", 
-                                    getExecutedCount(ctx._cls));
+                                    flow, getExecutedCount(ctx._cls));
                             LOG.debug("and all flows biz record:\n{}", Arrays.toString(getFlows()));
                         }
                     }});

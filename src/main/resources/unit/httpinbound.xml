@@ -33,9 +33,12 @@
         </constructor-arg>
     </bean>
     
-    <bean id="registrar" class="org.jocean.restful.RegistrarImpl">
+    <bean id="registrar" class="org.jocean.restful.RegistrarImpl"
+        init-method="start"
+        destroy-method="stop">
         <constructor-arg ref="eventEngine"/>
         <property name="beanHolder" ref="${beanHolder.name:unitAgent}"/>
+        <property name="pathPattern" ref="${inbound.pathpattern}"/>
     </bean>
     
     <bean id="jsonProvider" class="org.jocean.json.FastJSONProvider" />
@@ -54,15 +57,4 @@
 		    </bean>
         </constructor-arg>
     </bean>
-    
-    <bean id="registrarExporter" class="org.springframework.jmx.export.MBeanExporter"
-          lazy-init="false">
-        <property name="beans">
-            <map>
-                <entry key="org.jocean:name=flows" 
-                    value-ref="registrar"/>
-            </map>
-        </property>
-    </bean>
-    
 </beans>

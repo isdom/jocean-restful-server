@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 import javax.ws.rs.BeanParam;
 import javax.ws.rs.CookieParam;
@@ -58,8 +59,11 @@ import org.jocean.idiom.Function;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.ReflectUtils;
+import org.jocean.idiom.Regexs;
 import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.StopWatch;
+import org.jocean.j2se.jmx.MBeanRegister;
+import org.jocean.j2se.jmx.MBeanRegisterAware;
 import org.jocean.j2se.spring.SpringBeanHolder;
 import org.jocean.j2se.stats.TIMemos;
 import org.jocean.j2se.stats.TIMemos.EmitableTIMemo;
@@ -67,7 +71,6 @@ import org.jocean.j2se.unit.UnitAgent;
 import org.jocean.j2se.unit.UnitListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -84,7 +87,9 @@ import com.google.common.io.ByteStreams;
 /**
  * @author isdom
  */
-public class RegistrarImpl implements  Registrar<RegistrarImpl> {
+public class RegistrarImpl implements  Registrar<RegistrarImpl>, MBeanRegisterAware {
+
+    private static final String FLOWS_OBJECTNAME_SUFFIX = "name=flows";
 
     private static final Logger LOG
             = LoggerFactory.getLogger(RegistrarImpl.class);
@@ -99,30 +104,56 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         this._engine = source;
     }
 
+    public void start() {
+        final ConfigurableListableBeanFactory[] factorys = this._beanHolder.allBeanFactory();
+        for (ConfigurableListableBeanFactory factory : factorys) {
+            scanAndRegisterFlow(factory);
+        }
+        if (this._beanHolder instanceof UnitAgent) {
+            final UnitAgent agent = (UnitAgent)this._beanHolder;
+            agent.addUnitListener(_unitListener);
+        }
+        if (null!=this._register) {
+            this._register.registerMBean(FLOWS_OBJECTNAME_SUFFIX, this);
+        }
+    }
+    
+    public void stop() {
+        if (null!=this._register) {
+            this._register.unregisterMBean(FLOWS_OBJECTNAME_SUFFIX);
+        }
+        if (this._beanHolder instanceof UnitAgent) {
+            final UnitAgent agent = (UnitAgent)this._beanHolder;
+            agent.removeUnitListener(this._unitListener);
+        }
+        this._flowCtxs.clear();
+        this._pathMatchers.clear();
+    }
+    
     public String[] getFlows() {
-        final Multimap<String, Pair<String,Context>> apis = ArrayListMultimap.create(); 
+        final Multimap<String, Pair<String,FlowContext>> apis = ArrayListMultimap.create(); 
         
-        for ( Map.Entry<String, Context> entry : this._resources.entrySet()) {
+        for ( Map.Entry<String, FlowContext> entry : this._flowCtxs.entrySet()) {
             Pair<String,String> pathAndMethod = genPathAndMethod(entry.getKey());
             apis.put(pathAndMethod.getFirst(), Pair.of(pathAndMethod.getSecond(), entry.getValue()));
         }
 
-        for ( Map.Entry<String, Pair<PathMatcher, Context>> entry : this._pathmatchers.entries()) {
+        for ( Map.Entry<String, Pair<PathMatcher, FlowContext>> entry : this._pathMatchers.entries()) {
             Pair<String,String> pathAndMethod = genPathAndMethod(entry.getKey());
             apis.put(pathAndMethod.getFirst(), Pair.of(pathAndMethod.getSecond(), entry.getValue().getSecond()));
 //            flows.add(entry.getKey() + "-->" + entry.getValue());
         }
         final List<String> flows = new ArrayList<>();
-        for ( Map.Entry<String, Collection<Pair<String, Context>>> entry 
+        for ( Map.Entry<String, Collection<Pair<String, FlowContext>>> entry 
                 : apis.asMap().entrySet()) {
             final StringBuilder sb = new StringBuilder();
-            final Context ctx = entry.getValue().iterator().next().getSecond();
+            final FlowContext ctx = entry.getValue().iterator().next().getSecond();
             sb.append("[");
             sb.append(getExecutedCount(ctx._cls));
             sb.append("]");
             sb.append(entry.getKey());
             sb.append("-->");
-            for (Pair<String, Context> pair : entry.getValue()) {
+            for (Pair<String, FlowContext> pair : entry.getValue()) {
                 sb.append(pair.getFirst());
                 sb.append("/");
             }
@@ -147,29 +178,8 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         return Pair.of(cells[1], cells[0]);
     }
 
-    public void setBeanHolder(final SpringBeanHolder beanHolder) throws BeansException {
+    public void setBeanHolder(final SpringBeanHolder beanHolder) {
         this._beanHolder = beanHolder;
-        final ConfigurableListableBeanFactory[] factorys = beanHolder.allBeanFactory();
-        for (ConfigurableListableBeanFactory factory : factorys) {
-            scanAndRegisterFlow(factory);
-        }
-        if (this._beanHolder instanceof UnitAgent) {
-            final UnitAgent agent = (UnitAgent)this._beanHolder;
-            agent.addUnitListener(new UnitListener() {
-
-                @Override
-                public void postUnitCreated(final String unitPath, 
-                        final ConfigurableApplicationContext appctx) {
-                    scanAndRegisterFlow(appctx.getBeanFactory());
-                }
-
-                @Override
-                public void beforeUnitClosed(final String unitPath,
-                        final ConfigurableApplicationContext appctx) {
-                    unregisterAllFlow(appctx.getBeanFactory());
-                }
-            });
-        }
     }
 
     private void scanAndRegisterFlow(final ConfigurableListableBeanFactory factory) {
@@ -213,12 +223,17 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
     @Override
     public void setClasses(final Set<Class<?>> classes) {
-        this._resources.clear();
+        this._flowCtxs.clear();
+        this._pathMatchers.clear();
         for (Class<?> cls : classes) {
             this.register(cls);
         }
     }
 
+    public void setPathPattern(final String pathPattern) {
+        this._pathPattern = Regexs.safeCompilePattern(pathPattern);;
+    }
+    
     @Override
     public RegistrarImpl register(final Class<?> cls) {
 
@@ -236,7 +251,13 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
                         "flow class(%s)'s Path must have value setted", flowCls
                 );
 
-        final Context flowCtx = new Context(flowCls);
+        if (!Regexs.isMatched(this._pathPattern, flowPath)) {
+            LOG.info("flow {} 's path {} !NOT! match path pattern {}, just ignore",
+                    flowCls, flowPath, this._pathPattern);
+            return this;
+        }
+        
+        final FlowContext flowCtx = new FlowContext(flowCls);
 
         final int initMethodCount =
                 addPathsByAnnotatedMethods(flowPath, flowCtx, GET.class)
@@ -256,10 +277,10 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
     public RegistrarImpl unregister(final Class<?> cls) {
         LOG.info("unregister {}'s entry.", cls);
         {
-            final Iterator<Map.Entry<String, Context>> itr = 
-                    this._resources.entrySet().iterator();
+            final Iterator<Map.Entry<String, FlowContext>> itr = 
+                    this._flowCtxs.entrySet().iterator();
             while ( itr.hasNext()) {
-                final Map.Entry<String, Context> entry = itr.next();
+                final Map.Entry<String, FlowContext> entry = itr.next();
                 if (entry.getValue()._cls.equals(cls)) {
                     itr.remove();
                     LOG.info("remove {} from resources.", entry.getKey());
@@ -268,13 +289,13 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         }
         
         {
-            Iterator<Map.Entry<String, Pair<PathMatcher, Context>>> itr = 
-                    this._pathmatchers.entries().iterator();
+            Iterator<Map.Entry<String, Pair<PathMatcher, FlowContext>>> itr = 
+                    this._pathMatchers.entries().iterator();
             while ( itr.hasNext()) {
-                final Map.Entry<String, Pair<PathMatcher, Context>> entry = itr.next();
+                final Map.Entry<String, Pair<PathMatcher, FlowContext>> entry = itr.next();
                 if (entry.getValue().second._cls.equals(cls)) {
                     itr.remove();
-                    LOG.info("remove {} from _pathmatchers.", entry.getKey());
+                    LOG.info("remove {} from _pathMatchers.", entry.getKey());
                 }
             }
         }
@@ -291,14 +312,14 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
         final String rawPath = decoder.path();
 
-        final Pair<Context, Map<String, String>> ctxAndParamValues =
+        final Pair<FlowContext, Map<String, String>> ctxAndParamValues =
                 findContextByMethodAndPath(request.getMethod().name(), rawPath);
 
         if (null == ctxAndParamValues) {
             return null;
         }
 
-        final Context ctx = ctxAndParamValues.getFirst();
+        final FlowContext ctx = ctxAndParamValues.getFirst();
         final Map<String, String> pathParamValues = ctxAndParamValues.getSecond();
 
         if (LOG.isDebugEnabled()) {
@@ -507,11 +528,11 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         }
     }
 
-    private Pair<Context, Map<String, String>> findContextByMethodAndPath(
+    private Pair<FlowContext, Map<String, String>> findContextByMethodAndPath(
             final String httpMethod, final String rawPath) {
 
         // try direct path match
-        final Context ctx = this._resources.get(httpMethod + ":" + rawPath);
+        final FlowContext ctx = this._flowCtxs.get(httpMethod + ":" + rawPath);
         if (null != ctx) {
             return Pair.of(ctx, null);
         } else {
@@ -519,12 +540,12 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         }
     }
 
-    private Pair<Context, Map<String, String>> matchPathWithParams(
+    private Pair<FlowContext, Map<String, String>> matchPathWithParams(
             final String httpMethod, final String rawPath) {
-        Collection<Pair<PathMatcher, Context>> matchers =
-                this._pathmatchers.get(httpMethod);
+        Collection<Pair<PathMatcher, FlowContext>> matchers =
+                this._pathMatchers.get(httpMethod);
         if (null != matchers) {
-            for (Pair<PathMatcher, Context> matcher : matchers) {
+            for (Pair<PathMatcher, FlowContext> matcher : matchers) {
                 final Map<String, String> paramValues = matcher.getFirst().match(rawPath);
                 if (null != paramValues) {
                     return Pair.of(matcher.getSecond(), paramValues);
@@ -605,7 +626,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
     private int addPathsByAnnotatedMethods(
             final String flowPath,
-            final Context flowCtx,
+            final FlowContext flowCtx,
             final Class<? extends Annotation> httpMethodAnnotation) {
         final Method[] initMethods =
                 ReflectUtils.getAnnotationMethodsOf(flowCtx._cls, httpMethodAnnotation);
@@ -618,7 +639,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
                 final String methodPath = genMethodPathOf(flowPath, init);
                 registerPathOfContext(httpMethodAnnotation, methodPath,
-                        new Context(flowCtx, init));
+                        new FlowContext(flowCtx, init));
             }
         }
 
@@ -628,14 +649,14 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
     private void registerPathOfContext(
             final Class<? extends Annotation> httpMethodAnnotation,
             final String methodPath,
-            final Context context) {
+            final FlowContext context) {
         final String httpMethod = checkNotNull(httpMethodAnnotation.getAnnotation(HttpMethod.class),
                 "(%s) must annotated by HttpMethod", httpMethodAnnotation).value();
 
         final PathMatcher pathMatcher = PathMatcher.create(methodPath);
         if (null == pathMatcher) {
             //  Path without parameters
-            this._resources.put(httpMethod + ":" + methodPath, context);
+            this._flowCtxs.put(httpMethod + ":" + methodPath, context);
 
             if (LOG.isDebugEnabled()) {
                 LOG.debug("register httpMethod {} for Path {} with context {}",
@@ -643,7 +664,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
             }
         } else {
             // Path !WITH! parameters
-            this._pathmatchers.put(httpMethod, Pair.of(pathMatcher, context));
+            this._pathMatchers.put(httpMethod, Pair.of(pathMatcher, context));
             if (LOG.isDebugEnabled()) {
                 LOG.debug("register httpMethod {} for !Parametered! Path {} with matcher {} & context {}",
                         httpMethod, methodPath, pathMatcher, context);
@@ -704,9 +725,9 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         }
     }
 
-    private static class Context {
+    private static class FlowContext {
 
-        Context(final Context ctx,
+        FlowContext(final FlowContext ctx,
                 final Method init
         ) {
             this._cls = ctx._cls;
@@ -715,7 +736,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
             this._field2params = new HashMap<Field, Params>(ctx._field2params);
         }
 
-        Context(final Class<?> cls) {
+        FlowContext(final Class<?> cls) {
             this._cls = cls;
             this._init = null;
             final Field[] beanFields = ReflectUtils.getAnnotationFieldsOf(cls, BeanParam.class);
@@ -738,7 +759,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
 
         @Override
         public String toString() {
-            return "Context [_cls=" + _cls + ", _init=" + _init
+            return "FlowContext [_cls=" + _cls + ", _init=" + _init
                     + ", _selfParams=" + _selfParams + ", _field2params="
                     + _field2params + "]";
         }
@@ -760,6 +781,11 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
         this._executedTIMemos.get(cls).emit(receptor);
     }
     
+    @Override
+    public void setMBeanRegister(final MBeanRegister register) {
+        this._register = register;
+    }
+    
     private final SimpleCache<Class<?>, AtomicInteger> _executedCounters = new SimpleCache<>(
             new Function<Class<?>, AtomicInteger>() {
         @Override
@@ -774,11 +800,27 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl> {
             return TIMemos.memo_10ms_30S();
         }});
     
-    private final Map<String, Context> _resources =
-            new HashMap<String, Context>();
+    private final Map<String, FlowContext> _flowCtxs =
+            new HashMap<String, FlowContext>();
 
-    private final Multimap<String, Pair<PathMatcher, Context>> _pathmatchers = ArrayListMultimap.create();
+    private final Multimap<String, Pair<PathMatcher, FlowContext>> _pathMatchers = 
+            ArrayListMultimap.create();
 
+    private final UnitListener _unitListener = new UnitListener() {
+        @Override
+        public void postUnitCreated(final String unitPath, 
+                final ConfigurableApplicationContext appctx) {
+            scanAndRegisterFlow(appctx.getBeanFactory());
+        }
+        @Override
+        public void beforeUnitClosed(final String unitPath,
+                final ConfigurableApplicationContext appctx) {
+            unregisterAllFlow(appctx.getBeanFactory());
+        }
+    };
+    
     private SpringBeanHolder _beanHolder;
     private final EventEngine _engine;
+    private Pattern _pathPattern;
+    private MBeanRegister _register;
 }

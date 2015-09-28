@@ -6,6 +6,8 @@ public interface InboundMXBean {
     
     public int getPort();
     
+    public String getCategory();
+    
     public String getPathPattern();
     
     public int getPriority();

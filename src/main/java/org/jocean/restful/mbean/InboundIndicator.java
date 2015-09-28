@@ -30,6 +30,11 @@ public class InboundIndicator extends Feature.AbstractFeature0
     }
 
     @Override
+    public String getCategory() {
+        return this._category;
+    }
+    
+    @Override
     public int getPriority() {
         return this._priority;
     }
@@ -53,6 +58,10 @@ public class InboundIndicator extends Feature.AbstractFeature0
         this._pathPattern = pathPattern;
     }
 
+    public void setCategory(final String category) {
+        this._category = category;
+    }
+    
     public void setPriority(final int priority) {
         this._priority = priority;
     }
@@ -72,5 +81,6 @@ public class InboundIndicator extends Feature.AbstractFeature0
     private MBeanRegister _register;
     private String _mbeanName;
     private String _pathPattern;
+    private String _category;
     private int _priority;
 }

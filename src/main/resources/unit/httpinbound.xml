@@ -7,7 +7,6 @@
     <bean id="httpfeatures" class="java.util.concurrent.CopyOnWriteArrayList" />
 
     <bean id="inboundIndicator" class="org.jocean.restful.mbean.InboundIndicator">
-        <property name="mbeanName" value="${inbound.name:name=inbound}"/>
         <property name="pathPattern" value="${inbound.pathpattern}"/>
         <property name="priority" value="${inbound.priority:100}"/>
     </bean>
@@ -17,7 +16,7 @@
         factory-method="defineServer">
         <constructor-arg>
             <bean class="java.net.InetSocketAddress">
-                <constructor-arg value="${http.ip:0.0.0.0}"/>
+                <constructor-arg value="${http.address:0.0.0.0}"/>
                 <constructor-arg value="${http.port:0}"/>
             </bean>
         </constructor-arg>

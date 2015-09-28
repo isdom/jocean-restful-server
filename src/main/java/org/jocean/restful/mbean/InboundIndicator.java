@@ -14,11 +14,33 @@ import org.jocean.j2se.jmx.MBeanRegisterAware;
 public class InboundIndicator extends Feature.AbstractFeature0 
     implements InboundMXBean, ServerChannelAware, MBeanRegisterAware {
 
+    public InboundIndicator() {
+        String hostname = "unknown";
+        String hostip = "0.0.0.0";
+        try {
+            hostname = InetAddress.getLocalHost().getHostName();
+            hostip = InetAddress.getByName(hostname).toString();
+        } catch (UnknownHostException e) {
+        }
+        this._hostname = hostname;
+        this._hostip = hostip;
+    }
+    
     @Override
     public String getHost() {
-        return _HOSTNAME;
+        return _hostname;
     }
 
+    @Override
+    public String getHostIp() {
+        return this._hostip;
+    }
+    
+    @Override
+    public String getBindIp() {
+        return this._bindip;
+    }
+    
     @Override
     public int getPort() {
         return this._port;
@@ -41,17 +63,20 @@ public class InboundIndicator extends Feature.AbstractFeature0
     
     @Override
     public void setServerChannel(final ServerChannel serverChannel) {
-        this._port = ((InetSocketAddress)serverChannel.localAddress()).getPort();
-        this._register.registerMBean(this._mbeanName, this);
+        if (serverChannel.localAddress() instanceof InetSocketAddress) {
+            final InetSocketAddress addr = (InetSocketAddress)serverChannel.localAddress();
+            this._port = addr.getPort();
+            this._bindip = null != addr.getAddress()
+                    ? addr.getAddress().toString()
+                    : "0.0.0.0";
+        }
+        this._register.registerMBean("name=inbound,address=" + this._bindip
+                +",port=" + this._port, this);
     }
 
     @Override
     public void setMBeanRegister(final MBeanRegister register) {
         this._register = register;
-    }
-    
-    public void setMbeanName(final String mbeanName) {
-        this._mbeanName = mbeanName;
     }
     
     public void setPathPattern(final String pathPattern) {
@@ -66,20 +91,11 @@ public class InboundIndicator extends Feature.AbstractFeature0
         this._priority = priority;
     }
     
-    private static final String _HOSTNAME;
-    private volatile int _port;
-    
-    static {
-        String hostname = "unknown";
-        try {
-            hostname = InetAddress.getLocalHost().getHostName();
-        } catch (UnknownHostException e) {
-        }
-        _HOSTNAME = hostname;
-    }
-    
+    private final String _hostname;
+    private final String _hostip;
+    private volatile String _bindip;
+    private volatile int _port = 0;
     private MBeanRegister _register;
-    private String _mbeanName;
     private String _pathPattern;
     private String _category;
     private int _priority;

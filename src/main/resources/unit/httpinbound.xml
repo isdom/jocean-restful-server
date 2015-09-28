@@ -6,10 +6,10 @@
     
     <bean id="httpfeatures" class="java.util.concurrent.CopyOnWriteArrayList" />
 
-    <bean id="inboundIndicator" class="org.jocean.restful.mbean.InboundIndicator">
+    <bean id="inboundIndicator" class="org.jocean.restful.mbean.RestfulInboundIndicator">
         <property name="category" value="${inbound.category}"/>
-        <property name="pathPattern" value="${inbound.pathpattern}"/>
         <property name="priority" value="${inbound.priority:100}"/>
+        <property name="pathPattern" value="${inbound.pathpattern}"/>
     </bean>
     
     <bean id="agentServer" 

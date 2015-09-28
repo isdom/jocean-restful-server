@@ -37,7 +37,7 @@
         destroy-method="stop">
         <constructor-arg ref="eventEngine"/>
         <property name="beanHolder" ref="${beanHolder.name:unitAgent}"/>
-        <property name="pathPattern" ref="${inbound.pathpattern}"/>
+        <property name="pathPattern" value="${inbound.pathpattern}"/>
     </bean>
     
     <bean id="jsonProvider" class="org.jocean.json.FastJSONProvider" />

@@ -69,6 +69,7 @@ import org.jocean.j2se.stats.TIMemos;
 import org.jocean.j2se.stats.TIMemos.EmitableTIMemo;
 import org.jocean.j2se.unit.UnitAgent;
 import org.jocean.j2se.unit.UnitListener;
+import org.jocean.restful.mbean.RegistrarMXBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -87,7 +88,7 @@ import com.google.common.io.ByteStreams;
 /**
  * @author isdom
  */
-public class RegistrarImpl implements  Registrar<RegistrarImpl>, MBeanRegisterAware {
+public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAware, RegistrarMXBean {
 
     private static final String FLOWS_OBJECTNAME_SUFFIX = "name=flows";
 
@@ -130,6 +131,7 @@ public class RegistrarImpl implements  Registrar<RegistrarImpl>, MBeanRegisterAw
         this._pathMatchers.clear();
     }
     
+    @Override
     public String[] getFlows() {
         final Multimap<String, Pair<String,FlowContext>> apis = ArrayListMultimap.create(); 
         

@@ -357,12 +357,12 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
 
                     @Override
                     public void afterFlowDestroy() throws Exception {
-                        incExecutedCount(ctx._cls);
+                        final int count = incExecutedCount(ctx._cls);
                         recordExecutedInterval(ctx._cls, clock);
                         if (LOG.isDebugEnabled()) {
                             LOG.debug("{}'s afterFlowDestroy, so record biz count: {}", 
-                                    flow, getExecutedCount(ctx._cls));
-                            LOG.debug("and all flows biz record:\n{}", Arrays.toString(getFlows()));
+                                    flow, count);
+//                            LOG.debug("and all flows biz record:\n{}", Arrays.toString(getFlows()));
                         }
                     }});
 
@@ -767,8 +767,8 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         }
     }
 
-    private void incExecutedCount(final Class<?> cls) {
-        this._executedCounters.get(cls).incrementAndGet();
+    private int incExecutedCount(final Class<?> cls) {
+        return this._executedCounters.get(cls).incrementAndGet();
     }
     
     private int getExecutedCount(final Class<?> cls) {

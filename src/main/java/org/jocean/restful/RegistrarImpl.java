@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import javax.ws.rs.BeanParam;
@@ -48,6 +49,7 @@ import javax.ws.rs.QueryParam;
 
 import org.jocean.event.api.AbstractFlow;
 import org.jocean.event.api.BizStep;
+import org.jocean.event.api.EndReasonAware;
 import org.jocean.event.api.EventEngine;
 import org.jocean.event.api.EventReceiver;
 import org.jocean.event.api.FlowLifecycleListener;
@@ -346,9 +348,15 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         final String event = invoker.getBindedEvent();
 
         final StopWatch clock = new StopWatch();
+        final AtomicReference<String> endReasonRef = new AtomicReference<>("default");
         this._engine.create(flow.toString(),
                 new BizStep("INIT").handler(invoker).freeze(),
                 flow,
+                new EndReasonAware() {
+                    @Override
+                    public void setEndReason(final Object endreason) {
+                        endReasonRef.set(endreason.toString());
+                    }},
                 new FlowLifecycleListener() {
                     @Override
                     public void afterEventReceiverCreated(final EventReceiver receiver)
@@ -358,7 +366,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                     @Override
                     public void afterFlowDestroy() throws Exception {
                         final int count = incExecutedCount(ctx._cls);
-                        recordExecutedInterval(ctx._cls, clock);
+                        recordExecutedInterval(ctx._cls, endReasonRef.get(), clock);
                         if (LOG.isDebugEnabled()) {
                             LOG.debug("{}'s afterFlowDestroy, so record biz count: {}", 
                                     flow, count);
@@ -775,12 +783,16 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         return this._executedCounters.get(cls).get();
     }
     
-    private void recordExecutedInterval(final Class<?> cls, final StopWatch clock) {
-        this._executedTIMemos.get(cls).recordInterval(clock.stopAndRestart());
+    private void recordExecutedInterval(final Class<?> cls, final String endreason, final StopWatch clock) {
+        this._executedTIMemos.get(cls).get(endreason).recordInterval(clock.stopAndRestart());
     }
     
     private void fetchExecutedInterval(final Class<?> cls, final Action1<String> receptor) {
-        this._executedTIMemos.get(cls).emit(receptor);
+        final Map<String, EmitableTIMemo> snapshot = this._executedTIMemos.get(cls).snapshot();
+        for (Map.Entry<String, EmitableTIMemo> entry : snapshot.entrySet()) {
+            receptor.call(entry.getKey() + ":");
+            entry.getValue().emit(receptor);
+        }
     }
     
     @Override
@@ -795,11 +807,16 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
             return new AtomicInteger(0);
         }});
     
-    private final SimpleCache<Class<?>, EmitableTIMemo> _executedTIMemos = new SimpleCache<>(
-            new Function<Class<?>, EmitableTIMemo>() {
+    private final SimpleCache<Class<?>, SimpleCache<String,EmitableTIMemo>> _executedTIMemos = new SimpleCache<>(
+            new Function<Class<?>, SimpleCache<String,EmitableTIMemo>>() {
         @Override
-        public EmitableTIMemo apply(final Class<?> input) {
-            return TIMemos.memo_10ms_30S();
+        public SimpleCache<String,EmitableTIMemo> apply(final Class<?> input) {
+            return new SimpleCache<String,EmitableTIMemo>(
+                    new Function<String, EmitableTIMemo>() {
+                        @Override
+                        public EmitableTIMemo apply(final String input) {
+                            return TIMemos.memo_10ms_30S();
+                        }});
         }});
     
     private final Map<String, FlowContext> _flowCtxs =

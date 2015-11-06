@@ -789,8 +789,9 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
     
     private void fetchExecutedInterval(final Class<?> cls, final Action1<String> receptor) {
         final Map<String, EmitableTIMemo> snapshot = this._executedTIMemos.get(cls).snapshot();
+        int idx = 0;
         for (Map.Entry<String, EmitableTIMemo> entry : snapshot.entrySet()) {
-            receptor.call(entry.getKey() + ":");
+            receptor.call( "(" + Integer.toString(idx) + ")." + entry.getKey() + ":");
             entry.getValue().emit(receptor);
         }
     }

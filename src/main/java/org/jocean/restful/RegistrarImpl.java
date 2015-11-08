@@ -6,14 +6,6 @@ package org.jocean.restful;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufInputStream;
-import io.netty.buffer.EmptyByteBuf;
-import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.QueryStringDecoder;
-import io.netty.handler.codec.http.cookie.Cookie;
-import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 
 import java.beans.PropertyEditor;
 import java.beans.PropertyEditorManager;
@@ -31,7 +23,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
@@ -57,18 +48,14 @@ import org.jocean.event.api.annotation.OnEvent;
 import org.jocean.event.api.internal.DefaultInvoker;
 import org.jocean.event.api.internal.EventInvoker;
 import org.jocean.idiom.ExceptionUtils;
-import org.jocean.idiom.Function;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.ReflectUtils;
 import org.jocean.idiom.Regexs;
-import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.StopWatch;
 import org.jocean.j2se.jmx.MBeanRegister;
 import org.jocean.j2se.jmx.MBeanRegisterAware;
 import org.jocean.j2se.spring.SpringBeanHolder;
-import org.jocean.j2se.stats.TIMemos;
-import org.jocean.j2se.stats.TIMemos.EmitableTIMemo;
 import org.jocean.j2se.unit.UnitAgent;
 import org.jocean.j2se.unit.UnitListener;
 import org.jocean.restful.mbean.RegistrarMXBean;
@@ -78,14 +65,22 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
 
-import rx.functions.Action1;
-
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.io.ByteStreams;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
+import io.netty.buffer.EmptyByteBuf;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
+import rx.functions.Action1;
 
 /**
  * @author isdom
@@ -153,7 +148,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
             final StringBuilder sb = new StringBuilder();
             final FlowContext ctx = entry.getValue().iterator().next().getSecond();
             sb.append("[");
-            sb.append(getExecutedCount(ctx._cls));
+            sb.append(this._stats.getExecutedCount(ctx._cls));
             sb.append("]");
             sb.append(entry.getKey());
             sb.append("-->");
@@ -162,7 +157,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                 sb.append("/");
             }
             sb.append(ctx._cls);
-            fetchExecutedInterval(ctx._cls, new Action1<String>() {
+            this._stats.fetchExecutedInterval(ctx._cls, new Action1<String>() {
                 @Override
                 public void call(final String ttl) {
                     sb.append('\n');
@@ -365,8 +360,8 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
 
                     @Override
                     public void afterFlowDestroy() throws Exception {
-                        final int count = incExecutedCount(ctx._cls);
-                        recordExecutedInterval(ctx._cls, endReasonRef.get(), clock);
+                        final int count = _stats.incExecutedCount(ctx._cls);
+                        _stats.recordExecutedInterval(ctx._cls, endReasonRef.get(), clock);
                         if (LOG.isDebugEnabled()) {
                             LOG.debug("{}'s afterFlowDestroy, so record biz count: {}", 
                                     flow, count);
@@ -775,50 +770,12 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         }
     }
 
-    private int incExecutedCount(final Class<?> cls) {
-        return this._executedCounters.get(cls).incrementAndGet();
-    }
-    
-    private int getExecutedCount(final Class<?> cls) {
-        return this._executedCounters.get(cls).get();
-    }
-    
-    private void recordExecutedInterval(final Class<?> cls, final String endreason, final StopWatch clock) {
-        this._executedTIMemos.get(cls).get(endreason).recordInterval(clock.stopAndRestart());
-    }
-    
-    private void fetchExecutedInterval(final Class<?> cls, final Action1<String> receptor) {
-        final Map<String, EmitableTIMemo> snapshot = this._executedTIMemos.get(cls).snapshot();
-        int idx = 1;
-        for (Map.Entry<String, EmitableTIMemo> entry : snapshot.entrySet()) {
-            receptor.call( "(" + Integer.toString(idx++) + ")." + entry.getKey() + ":");
-            entry.getValue().emit(receptor);
-        }
-    }
-    
     @Override
     public void setMBeanRegister(final MBeanRegister register) {
         this._register = register;
     }
     
-    private final SimpleCache<Class<?>, AtomicInteger> _executedCounters = new SimpleCache<>(
-            new Function<Class<?>, AtomicInteger>() {
-        @Override
-        public AtomicInteger apply(final Class<?> input) {
-            return new AtomicInteger(0);
-        }});
-    
-    private final SimpleCache<Class<?>, SimpleCache<String,EmitableTIMemo>> _executedTIMemos = new SimpleCache<>(
-            new Function<Class<?>, SimpleCache<String,EmitableTIMemo>>() {
-        @Override
-        public SimpleCache<String,EmitableTIMemo> apply(final Class<?> input) {
-            return new SimpleCache<String,EmitableTIMemo>(
-                    new Function<String, EmitableTIMemo>() {
-                        @Override
-                        public EmitableTIMemo apply(final String input) {
-                            return TIMemos.memo_10ms_30S();
-                        }});
-        }});
+    private final FlowStats _stats = new FlowStats();
     
     private final Map<String, FlowContext> _flowCtxs =
             new HashMap<String, FlowContext>();

@@ -14,10 +14,8 @@ import java.io.UnsupportedEncodingException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -58,7 +56,6 @@ import org.jocean.j2se.jmx.MBeanRegisterAware;
 import org.jocean.j2se.spring.SpringBeanHolder;
 import org.jocean.j2se.unit.UnitAgent;
 import org.jocean.j2se.unit.UnitListener;
-import org.jocean.restful.mbean.RegistrarMXBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -80,24 +77,15 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
-import rx.functions.Action1;
 
 /**
  * @author isdom
  */
-public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAware, RegistrarMXBean {
-
-    private static final String FLOWS_OBJECTNAME_SUFFIX = "name=flows";
+public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAware {
 
     private static final Logger LOG
             = LoggerFactory.getLogger(RegistrarImpl.class);
 
-    private static final Comparator<String> DESC_COMPARATOR = new Comparator<String>() {
-        @Override
-        public int compare(final String o1, final String o2) {
-            return o2.compareTo(o1);
-        }};
-        
     public RegistrarImpl(final EventEngine source) {
         this._engine = source;
     }
@@ -111,15 +99,15 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
             final UnitAgent agent = (UnitAgent)this._beanHolder;
             agent.addUnitListener(_unitListener);
         }
-        if (null!=this._register) {
-            this._register.registerMBean(FLOWS_OBJECTNAME_SUFFIX, this);
-        }
+//        if (null!=this._register) {
+//            this._register.registerMBean(FLOWS_OBJECTNAME_SUFFIX, this);
+//        }
     }
     
     public void stop() {
-        if (null!=this._register) {
-            this._register.unregisterMBean(FLOWS_OBJECTNAME_SUFFIX);
-        }
+//        if (null!=this._register) {
+//            this._register.unregisterMBean(FLOWS_OBJECTNAME_SUFFIX);
+//        }
         if (this._beanHolder instanceof UnitAgent) {
             final UnitAgent agent = (UnitAgent)this._beanHolder;
             agent.removeUnitListener(this._unitListener);
@@ -128,55 +116,6 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         this._pathMatchers.clear();
     }
     
-    @Override
-    public String[] getFlows() {
-        final Multimap<String, Pair<String,FlowContext>> apis = ArrayListMultimap.create(); 
-        
-        for ( Map.Entry<String, FlowContext> entry : this._flowCtxs.entrySet()) {
-            Pair<String,String> pathAndMethod = genPathAndMethod(entry.getKey());
-            apis.put(pathAndMethod.getFirst(), Pair.of(pathAndMethod.getSecond(), entry.getValue()));
-        }
-
-        for ( Map.Entry<String, Pair<PathMatcher, FlowContext>> entry : this._pathMatchers.entries()) {
-            Pair<String,String> pathAndMethod = genPathAndMethod(entry.getKey());
-            apis.put(pathAndMethod.getFirst(), Pair.of(pathAndMethod.getSecond(), entry.getValue().getSecond()));
-//            flows.add(entry.getKey() + "-->" + entry.getValue());
-        }
-        final List<String> flows = new ArrayList<>();
-        for ( Map.Entry<String, Collection<Pair<String, FlowContext>>> entry 
-                : apis.asMap().entrySet()) {
-            final StringBuilder sb = new StringBuilder();
-            final FlowContext ctx = entry.getValue().iterator().next().getSecond();
-            sb.append("[");
-            sb.append(this._stats.getExecutedCount(ctx._cls));
-            sb.append("]");
-            sb.append(entry.getKey());
-            sb.append("-->");
-            for (Pair<String, FlowContext> pair : entry.getValue()) {
-                sb.append(pair.getFirst());
-                sb.append("/");
-            }
-            sb.append(ctx._cls);
-            this._stats.fetchExecutedInterval(ctx._cls, new Action1<String>() {
-                @Override
-                public void call(final String ttl) {
-                    sb.append('\n');
-                    sb.append('\t');
-                    sb.append(ttl);
-                }});
-            flows.add(sb.toString());
-        }
-        
-        final String[] flowsAsArray = flows.toArray(new String[0]);
-        Arrays.sort(flowsAsArray, DESC_COMPARATOR);
-        return flowsAsArray;
-    }
-    
-    private static Pair<String, String> genPathAndMethod(final String key) {
-        final String[] cells = key.split(":");
-        return Pair.of(cells[1], cells[0]);
-    }
-
     public void setBeanHolder(final SpringBeanHolder beanHolder) {
         this._beanHolder = beanHolder;
     }
@@ -651,6 +590,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         return initMethods.length;
     }
 
+    @SuppressWarnings("unchecked")
     private void registerPathOfContext(
             final Class<? extends Annotation> httpMethodAnnotation,
             final String methodPath,
@@ -658,6 +598,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         final String httpMethod = checkNotNull(httpMethodAnnotation.getAnnotation(HttpMethod.class),
                 "(%s) must annotated by HttpMethod", httpMethodAnnotation).value();
 
+        this._stats.addFlows(methodPath, httpMethod, (Class<Object>)context._cls);
         final PathMatcher pathMatcher = PathMatcher.create(methodPath);
         if (null == pathMatcher) {
             //  Path without parameters
@@ -772,10 +713,15 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
 
     @Override
     public void setMBeanRegister(final MBeanRegister register) {
-        this._register = register;
+//        this._register = register;
     }
     
-    private final FlowStats _stats = new FlowStats();
+    public void setFlowStats(final FlowStats stats) {
+        this._stats = stats;
+    }
+
+
+    private FlowStats _stats;
     
     private final Map<String, FlowContext> _flowCtxs =
             new HashMap<String, FlowContext>();
@@ -799,5 +745,5 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
     private SpringBeanHolder _beanHolder;
     private final EventEngine _engine;
     private Pattern _pathPattern;
-    private MBeanRegister _register;
+//    private MBeanRegister _register;
 }

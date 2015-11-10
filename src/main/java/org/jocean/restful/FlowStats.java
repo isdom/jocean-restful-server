@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.jocean.idiom.Function;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.StopWatch;
@@ -22,6 +21,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
 import rx.functions.Action1;
+import rx.functions.Func1;
 
 public class FlowStats implements RegistrarMXBean, MBeanRegisterAware {
     
@@ -99,9 +99,9 @@ public class FlowStats implements RegistrarMXBean, MBeanRegisterAware {
     }
 
     private final SimpleCache<Class<?>, AtomicInteger> _executedCounters = new SimpleCache<>(
-            new Function<Class<?>, AtomicInteger>() {
+            new Func1<Class<?>, AtomicInteger>() {
         @Override
-        public AtomicInteger apply(final Class<?> input) {
+        public AtomicInteger call(final Class<?> input) {
             return new AtomicInteger(0);
         }});
     

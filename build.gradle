@@ -17,8 +17,8 @@ dependencies {
     compile "com.fasterxml.jackson.core:jackson-databind:2.5.1"
     compile "org.springframework:spring-context:4.0.6.RELEASE"
     compile "com.google.guava:guava:18.0"
-    compile "io.netty:netty-all:4.0.31.Final"
-    compile 'io.reactivex:rxjava:1.0.14'
+    compile "io.netty:netty-all:4.0.33.Final"
+    compile 'io.reactivex:rxjava:1.0.15'
     compile "com.jcraft:jzlib:1.1.2"
     compile "net.sf.ehcache:ehcache:2.9.0"
     

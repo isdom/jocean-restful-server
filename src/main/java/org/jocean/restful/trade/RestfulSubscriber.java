@@ -292,9 +292,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                         public void output(final Object representation) {
                             safeDetachTask();
                             final String responseJson = _jsonProvider.toJSONString(representation);
-                            if (LOG.isDebugEnabled()) {
-                                LOG.debug("send resp:{}", responseJson);
-                            }
+                            LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback resp:{}", request, responseJson);
                             writeAndFlushResponse(trade, request, responseJson, _defaultContentType);
                         }
 
@@ -303,9 +301,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             safeDetachTask();
                             final String responseJson = 
                                     outerName + "(" + _jsonProvider.toJSONString(representation) + ")";
-                            if (LOG.isDebugEnabled()) {
-                                LOG.debug("send resp:{}", responseJson);
-                            }
+                            LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback resp:{}({})", request, outerName, responseJson);
                             writeAndFlushResponse(trade, request, responseJson, _defaultContentType);
                         }
 
@@ -314,18 +310,16 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                                 final Object representation,
                                 final String contentType) {
                             safeDetachTask();
-                            if (LOG.isDebugEnabled()) {
-                                LOG.debug("send resp:{}", representation);
-                            }
+                            LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback resp with contentType({}):{}", 
+                                    request, contentType, representation);
                             writeAndFlushResponse(trade, request, representation.toString(), contentType);
                         }
                         
                         @Override
                         public void outputAsHttpResponse(final FullHttpResponse response) {
                             safeDetachTask();
-                            if (LOG.isDebugEnabled()) {
-                                LOG.debug("send resp:{}", response);
-                            }
+                            LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback http-resp:{}", 
+                                    request, response);
                             final boolean keepAlive = isKeepAlive(request);
                             if (keepAlive) {
                                 // Add keep alive header as per:

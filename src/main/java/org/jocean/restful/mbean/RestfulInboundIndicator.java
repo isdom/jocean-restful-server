@@ -28,7 +28,7 @@ public class RestfulInboundIndicator extends InboundIndicator
     @Override
     public void setServerChannel(final ServerChannel serverChannel) {
         super.setServerChannel(serverChannel);
-        this._register.registerMBean("name=inbound,address=" + this.getBindIp()
+        this._register.registerMBean("name=inbound,address=" + this.getBindIp().replace(':', '_')
                 +",port=" + this.getPort(), this);
     }
 

@@ -86,8 +86,8 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
     private static final Logger LOG
             = LoggerFactory.getLogger(RegistrarImpl.class);
 
-    public RegistrarImpl(final EventEngine source) {
-        this._engine = source;
+    public RegistrarImpl(final EventEngine engine) {
+        this._engine = engine;
     }
 
     public void start() {

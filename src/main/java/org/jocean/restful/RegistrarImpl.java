@@ -300,7 +300,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                     @Override
                     public void afterFlowDestroy() throws Exception {
                         final int count = _stats.incExecutedCount(ctx._cls);
-                        _stats.recordExecutedInterval(ctx._cls, endReasonRef.get(), clock);
+                        _stats.recordExecutedInterval(ctx._cls, endReasonRef.get(), clock.stopAndRestart());
                         if (LOG.isDebugEnabled()) {
                             LOG.debug("{}'s afterFlowDestroy, so record biz count: {}", 
                                     flow, count);

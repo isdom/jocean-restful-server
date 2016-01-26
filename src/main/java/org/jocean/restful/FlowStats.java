@@ -10,7 +10,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
-import org.jocean.idiom.StopWatch;
 import org.jocean.j2se.jmx.MBeanRegister;
 import org.jocean.j2se.jmx.MBeanRegisterAware;
 import org.jocean.j2se.stats.MultilevelStats;
@@ -85,8 +84,8 @@ public class FlowStats implements RegistrarMXBean, MBeanRegisterAware {
         return this._executedCounters.get(cls).get();
     }
     
-    public void recordExecutedInterval(final Class<?> cls, final String endreason, final StopWatch clock) {
-        this._executedTIMemos.recordInterval(clock.stopAndRestart(), cls, endreason);
+    public void recordExecutedInterval(final Class<?> cls, final String endreason, final long interval) {
+        this._executedTIMemos.recordInterval(interval, cls, endreason);
     }
     
     private void fetchExecutedInterval(final Class<?> cls, final Action1<String> receptor) {

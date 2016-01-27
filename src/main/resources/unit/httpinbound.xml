@@ -38,7 +38,7 @@
         destroy-method="stop">
         <constructor-arg ref="eventEngine"/>
         <property name="beanHolder" ref="${beanHolder.name:unitAgent}"/>
-        <property name="flowStats" ref="${flowstats.name:flowStats}"/>
+        <!-- property name="flowStats" ref="${flowstats.name:flowStats}"/ -->
         <property name="pathPattern" value="${inbound.pathpattern}"/>
     </bean>
     

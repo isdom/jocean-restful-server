@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
+import javax.inject.Inject;
 import javax.ws.rs.BeanParam;
 import javax.ws.rs.CookieParam;
 import javax.ws.rs.DELETE;
@@ -54,6 +55,7 @@ import org.jocean.idiom.StopWatch;
 import org.jocean.j2se.jmx.MBeanRegister;
 import org.jocean.j2se.jmx.MBeanRegisterAware;
 import org.jocean.j2se.spring.SpringBeanHolder;
+import org.jocean.j2se.stats.FlowStats;
 import org.jocean.j2se.unit.UnitAgent;
 import org.jocean.j2se.unit.UnitListener;
 import org.slf4j.Logger;
@@ -99,15 +101,9 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
             final UnitAgent agent = (UnitAgent)this._beanHolder;
             agent.addUnitListener(_unitListener);
         }
-//        if (null!=this._register) {
-//            this._register.registerMBean(FLOWS_OBJECTNAME_SUFFIX, this);
-//        }
     }
     
     public void stop() {
-//        if (null!=this._register) {
-//            this._register.unregisterMBean(FLOWS_OBJECTNAME_SUFFIX);
-//        }
         if (this._beanHolder instanceof UnitAgent) {
             final UnitAgent agent = (UnitAgent)this._beanHolder;
             agent.removeUnitListener(this._unitListener);
@@ -304,7 +300,6 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                         if (LOG.isDebugEnabled()) {
                             LOG.debug("{}'s afterFlowDestroy, so record biz count: {}", 
                                     flow, count);
-//                            LOG.debug("and all flows biz record:\n{}", Arrays.toString(getFlows()));
                         }
                     }});
 
@@ -716,11 +711,11 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
 //        this._register = register;
     }
     
-    public void setFlowStats(final FlowStats stats) {
-        this._stats = stats;
-    }
+//    public void setFlowStats(final FlowStats stats) {
+//        this._stats = stats;
+//    }
 
-
+    @Inject
     private FlowStats _stats;
     
     private final Map<String, FlowContext> _flowCtxs =

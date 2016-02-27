@@ -711,10 +711,6 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
 //        this._register = register;
     }
     
-//    public void setFlowStats(final FlowStats stats) {
-//        this._stats = stats;
-//    }
-
     @Inject
     private FlowStats _stats;
     

@@ -123,7 +123,6 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                     this._postDecoder.destroy();
                     this._postDecoder = null;
                 }
-                this._cached.destroy();
             }
             
             @Override

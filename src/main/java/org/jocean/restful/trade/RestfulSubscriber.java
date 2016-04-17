@@ -9,6 +9,34 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.util.List;
+import java.util.Map;
+
+import org.jocean.event.api.EventReceiver;
+import org.jocean.event.api.PairedGuardEventable;
+import org.jocean.http.server.HttpServer.CachedHttpTrade;
+import org.jocean.http.server.HttpServer.HttpTrade;
+import org.jocean.http.util.Nettys;
+import org.jocean.idiom.Detachable;
+import org.jocean.idiom.ExceptionUtils;
+import org.jocean.idiom.InterfaceSource;
+import org.jocean.idiom.Pair;
+import org.jocean.json.JSONProvider;
+import org.jocean.restful.Events;
+import org.jocean.restful.OutputReactor;
+import org.jocean.restful.OutputSource;
+import org.jocean.restful.Registrar;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Multimaps;
+import com.google.common.io.ByteStreams;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.EmptyByteBuf;
@@ -31,37 +59,9 @@ import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.EndOfDataDec
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
 import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.util.CharsetUtil;
-
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.util.List;
-import java.util.Map;
-
-import org.jocean.event.api.EventReceiver;
-import org.jocean.event.api.PairedGuardEventable;
-import org.jocean.http.server.CachedRequest;
-import org.jocean.http.server.HttpServer.HttpTrade;
-import org.jocean.http.util.Nettys;
-import org.jocean.idiom.Detachable;
-import org.jocean.idiom.ExceptionUtils;
-import org.jocean.idiom.InterfaceSource;
-import org.jocean.idiom.Pair;
-import org.jocean.json.JSONProvider;
-import org.jocean.restful.Events;
-import org.jocean.restful.OutputReactor;
-import org.jocean.restful.OutputSource;
-import org.jocean.restful.Registrar;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import rx.Observable;
 import rx.Subscriber;
 import rx.observers.SerializedSubscriber;
-
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.Multimaps;
-import com.google.common.io.ByteStreams;
 
 /**
  * @author isdom
@@ -114,7 +114,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             @SuppressWarnings("unused")
             private boolean _isRequestHandled = false;
             private HttpRequest _request;
-            private CachedRequest _cached = new CachedRequest(trade);
+            private CachedHttpTrade _cached = trade.cached(-1);
           
             private void destructor() {
                 if (null!=this._postDecoder) {

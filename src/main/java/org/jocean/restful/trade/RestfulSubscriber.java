@@ -328,7 +328,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
 
                             addExtraHeaders(response);
 
-                            Observable.<HttpObject>just(response).subscribe(trade.responseObserver());
+                            trade.outboundResponse(Observable.<HttpObject>just(response));
                         }
                     });
                 } catch (Exception e) {
@@ -354,7 +354,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             }
         };
         
-        trade.request().subscribe(
+        trade.inboundRequest().subscribe(
             new SerializedSubscriber<HttpObject>(subscriber));
     }
     
@@ -389,7 +389,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
 
         addExtraHeaders(response);
         
-        Observable.<HttpObject>just(response).subscribe(trade.responseObserver());
+        trade.outboundResponse(Observable.<HttpObject>just(response));
 
         return keepAlive;
     }

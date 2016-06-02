@@ -159,7 +159,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                                 createAndInvokeRestfulBusiness(
                                         trade, 
                                         req, 
-                                        Unpooled.EMPTY_BUFFER, 
+                                        req.content(), 
                                         null != queryString 
                                             ? new QueryStringDecoder(queryString, false).parameters()
                                             : null);

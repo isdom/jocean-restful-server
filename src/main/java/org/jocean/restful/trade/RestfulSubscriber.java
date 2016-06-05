@@ -17,7 +17,6 @@ import java.util.Map;
 
 import org.jocean.event.api.EventReceiver;
 import org.jocean.event.api.PairedGuardEventable;
-import org.jocean.http.server.HttpServer.CachedHttpTrade;
 import org.jocean.http.server.HttpServer.HttpTrade;
 import org.jocean.http.util.Nettys;
 import org.jocean.idiom.Detachable;
@@ -114,7 +113,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             @SuppressWarnings("unused")
             private boolean _isRequestHandled = false;
             private HttpRequest _request;
-            private CachedHttpTrade _cached = trade.cached(-1);
+            private HttpTrade _trade = trade;
           
             private void destructor() {
                 if (null!=this._postDecoder) {
@@ -150,7 +149,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             }
 
             private void onCompleted4Standard() {
-                final FullHttpRequest req = this._cached.retainFullHttpRequest();
+                final FullHttpRequest req = this._trade.retainFullHttpRequest();
                 if (null!=req) {
                     try {
                         if (isPostWithForm(req)) {

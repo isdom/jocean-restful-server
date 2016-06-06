@@ -399,7 +399,9 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         if (null != params._beanParams) {
             for (Field beanField : params._beanParams) {
                 try {
-                    final Object bean = createObjectBy(bytes, beanField);
+                    final Object bean = createObjectBy(request.headers().get(HttpHeaders.Names.CONTENT_TYPE), 
+                            bytes, 
+                            beanField);
                     if (null != bean) {
                         beanField.set(obj, bean);
                         final Params beanParams = field2params.get(beanField);
@@ -431,11 +433,12 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
     }
 
     /**
+     * @param string 
      * @param bytes
      * @param beanField
      * @return
      */
-    private static Object createObjectBy(final byte[] bytes, final Field beanField) {
+    private static Object createObjectBy(final String contentType, final byte[] bytes, final Field beanField) {
         if (null != bytes) {
             if (beanField.getType().equals(byte[].class)) {
                 if (LOG.isDebugEnabled()) {
@@ -446,7 +449,8 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                     }
                 }
                 return bytes;
-            } else {
+            } else if ( null != contentType
+                    && contentType.startsWith("application/json")) {
                 if (LOG.isDebugEnabled()) {
                     try {
                         LOG.debug("createObjectBy: {}", new String(bytes, "UTF-8"));
@@ -456,14 +460,13 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                 }
                 return JSON.parseObject(bytes, beanField.getType());
             }
-        } else {
-            try {
-                return beanField.getType().newInstance();
-            } catch (Throwable e) {
-                LOG.warn("exception when create instance for type:{}, detail:{}",
-                        beanField.getType(), ExceptionUtils.exception2detail(e));
-                return null;
-            }
+        } 
+        try {
+            return beanField.getType().newInstance();
+        } catch (Throwable e) {
+            LOG.warn("exception when create instance for type:{}, detail:{}",
+                    beanField.getType(), ExceptionUtils.exception2detail(e));
+            return null;
         }
     }
 

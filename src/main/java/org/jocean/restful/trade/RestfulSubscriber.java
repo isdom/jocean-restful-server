@@ -18,11 +18,14 @@ import java.util.Map;
 import org.jocean.event.api.EventReceiver;
 import org.jocean.event.api.PairedGuardEventable;
 import org.jocean.http.server.HttpServer.HttpTrade;
+import org.jocean.http.util.HttpObjectHolder;
 import org.jocean.http.util.Nettys;
+import org.jocean.http.util.RxNettys;
 import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
+import org.jocean.idiom.rx.RxActions;
 import org.jocean.json.JSONProvider;
 import org.jocean.restful.Events;
 import org.jocean.restful.OutputReactor;
@@ -60,7 +63,6 @@ import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.util.CharsetUtil;
 import rx.Observable;
 import rx.Subscriber;
-import rx.observers.SerializedSubscriber;
 
 /**
  * @author isdom
@@ -103,6 +105,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
 
     @Override
     public void onNext(final HttpTrade trade) {
+        final HttpObjectHolder holder = new HttpObjectHolder(0);
         final Subscriber<HttpObject> subscriber = 
                 new Subscriber<HttpObject>() {
             private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();
@@ -113,7 +116,6 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             @SuppressWarnings("unused")
             private boolean _isRequestHandled = false;
             private HttpRequest _request;
-            private HttpTrade _trade = trade;
           
             private void destructor() {
                 if (null!=this._postDecoder) {
@@ -149,7 +151,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             }
 
             private void onCompleted4Standard() {
-                final FullHttpRequest req = this._trade.retainFullHttpRequest();
+                final FullHttpRequest req = holder.bindHttpObjects(RxNettys.BUILD_FULL_REQUEST).call();
                 if (null!=req) {
                     try {
                         if (isPostWithForm(req)) {
@@ -353,8 +355,10 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             }
         };
         
-        trade.inboundRequest().subscribe(
-            new SerializedSubscriber<HttpObject>(subscriber));
+        trade.doOnClosed(RxActions.<HttpTrade>toAction1(holder.release()))
+            .inboundRequest()
+            .compose(holder.assembleAndHold())
+            .subscribe(subscriber);
     }
     
     private boolean writeAndFlushResponse(

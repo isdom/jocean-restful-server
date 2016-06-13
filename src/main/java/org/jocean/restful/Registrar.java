@@ -23,6 +23,7 @@ public interface Registrar<REG extends Registrar<?>> {
 
     public Pair<Object, String> buildFlowMatch(
             final HttpRequest request,
+            final String contentType,
             final ByteBuf content, 
             final Map<String, List<String>> formParameters) throws Exception;
 }

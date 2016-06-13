@@ -239,6 +239,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
     @Override
     public Pair<Object, String> buildFlowMatch(
             final HttpRequest request,
+            final String contentType,
             final ByteBuf content,
             final Map<String, List<String>> formParameters
             ) throws Exception {
@@ -270,6 +271,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                 pathParamValues, 
                 queryValues, 
                 request,
+                contentType,
                 decodeContent(content)
                 );
 
@@ -350,6 +352,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
             final Map<String, String> pathParamValues,
             final Map<String, List<String>> queryParamValues,
             final HttpRequest request,
+            final String contentType, 
             final byte[] bytes) {
         if (null != params._pathParams && null != pathParamValues) {
             for (Field field : params._pathParams) {
@@ -399,7 +402,8 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         if (null != params._beanParams) {
             for (Field beanField : params._beanParams) {
                 try {
-                    final Object bean = createObjectBy(request.headers().get(HttpHeaders.Names.CONTENT_TYPE), 
+                    final Object bean = createObjectBy(
+                            contentType, 
                             bytes, 
                             beanField);
                     if (null != bean) {
@@ -412,6 +416,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                                     pathParamValues, 
                                     queryParamValues, 
                                     request, 
+                                    contentType,
                                     bytes);
                         }
                     }

@@ -154,12 +154,14 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                 final FullHttpRequest req = holder.bindHttpObjects(RxNettys.BUILD_FULL_REQUEST).call();
                 if (null!=req) {
                     try {
+                        final String contentType = req.headers().get(HttpHeaders.Names.CONTENT_TYPE);
                         if (isPostWithForm(req)) {
                             final String queryString = toQueryString(req.content());
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
                                         req, 
+                                        contentType,
                                         req.content(), 
                                         null != queryString 
                                             ? new QueryStringDecoder(queryString, false).parameters()
@@ -169,6 +171,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                                 createAndInvokeRestfulBusiness(
                                         trade, 
                                         req, 
+                                        contentType,
                                         req.content(), 
                                         Multimaps.asMap(this._formParameters));
                         }
@@ -232,6 +235,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                                 createAndInvokeRestfulBusiness(
                                         trade,
                                         this._request, 
+                                        fileUpload.getContentType(),
                                         content, 
                                         Multimaps.asMap(this._formParameters));
                         } catch (Exception e) {
@@ -271,11 +275,12 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             private boolean createAndInvokeRestfulBusiness(
                     final HttpTrade trade,
                     final HttpRequest request, 
+                    final String  contentType,
                     final ByteBuf content, 
                     final Map<String, List<String>> formParameters) 
                     throws Exception {
                 final Pair<Object, String> flowAndEvent =
-                        _registrar.buildFlowMatch(request, content, formParameters);
+                        _registrar.buildFlowMatch(request, contentType, content, formParameters);
 
                 if (null == flowAndEvent) {
                     // path not found

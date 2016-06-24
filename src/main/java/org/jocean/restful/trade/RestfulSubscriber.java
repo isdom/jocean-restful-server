@@ -18,7 +18,7 @@ import java.util.Map;
 import org.jocean.event.api.EventReceiver;
 import org.jocean.event.api.PairedGuardEventable;
 import org.jocean.http.server.HttpServer.HttpTrade;
-import org.jocean.http.util.HttpObjectHolder;
+import org.jocean.http.util.HttpMessageHolder;
 import org.jocean.http.util.Nettys;
 import org.jocean.http.util.RxNettys;
 import org.jocean.idiom.Detachable;
@@ -105,7 +105,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
 
     @Override
     public void onNext(final HttpTrade trade) {
-        final HttpObjectHolder holder = new HttpObjectHolder(0);
+        final HttpMessageHolder holder = new HttpMessageHolder(0);
         final Subscriber<HttpObject> subscriber = 
                 new Subscriber<HttpObject>() {
             private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();

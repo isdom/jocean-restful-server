@@ -245,7 +245,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
             ) throws Exception {
         final QueryStringDecoder decoder = new QueryStringDecoder(request.getUri());
 
-        final String rawPath = decoder.path();
+        final String rawPath = getRawPath(decoder.path());
 
         final Pair<FlowContext, Map<String, String>> ctxAndParamValues =
                 findContextByMethodAndPath(request.getMethod().name(), rawPath);
@@ -311,6 +311,18 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         }
 
         return Pair.of(flow, event);
+    }
+
+    private String getRawPath(final String path) {
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+            //  http://wangsz.xicp.net:10900/call/zmccCallEndNotify
+            final int schemeIdx = path.indexOf("://");
+            final String pathWithoutScheme = path.substring(schemeIdx + 3);
+            final int rawPathIdx = pathWithoutScheme.indexOf('/');
+            return (rawPathIdx > 0) ? pathWithoutScheme.substring(rawPathIdx) : "/";
+        } else {
+            return path;
+        }
     }
 
     private Map<String, List<String>> unionQueryValues(

@@ -13,7 +13,7 @@
     </bean>
     
     <bean id="agentServer" 
-        factory-bean="httpServer" 
+        factory-bean="httpServerBuilder" 
         factory-method="defineServer">
         <constructor-arg>
             <bean class="java.net.InetSocketAddress">

@@ -17,7 +17,7 @@ import java.util.Map;
 
 import org.jocean.event.api.EventReceiver;
 import org.jocean.event.api.PairedGuardEventable;
-import org.jocean.http.server.HttpServer.HttpTrade;
+import org.jocean.http.server.HttpServerBuilder.HttpTrade;
 import org.jocean.http.util.HttpMessageHolder;
 import org.jocean.http.util.Nettys;
 import org.jocean.http.util.RxNettys;

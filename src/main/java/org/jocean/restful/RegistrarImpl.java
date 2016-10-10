@@ -29,8 +29,10 @@ import javax.ws.rs.BeanParam;
 import javax.ws.rs.CookieParam;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
+import javax.ws.rs.HEAD;
 import javax.ws.rs.HeaderParam;
 import javax.ws.rs.HttpMethod;
+import javax.ws.rs.OPTIONS;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
@@ -194,13 +196,15 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         final FlowContext flowCtx = new FlowContext(flowCls);
 
         final int initMethodCount =
-                addPathsByAnnotatedMethods(flowPath, flowCtx, GET.class)
-                        + addPathsByAnnotatedMethods(flowPath, flowCtx, POST.class)
-                        + addPathsByAnnotatedMethods(flowPath, flowCtx, PUT.class)
-                        + addPathsByAnnotatedMethods(flowPath, flowCtx, DELETE.class);
+            addPathsByAnnotatedMethods(flowPath, flowCtx, GET.class)
+            + addPathsByAnnotatedMethods(flowPath, flowCtx, POST.class)
+            + addPathsByAnnotatedMethods(flowPath, flowCtx, PUT.class)
+            + addPathsByAnnotatedMethods(flowPath, flowCtx, DELETE.class)
+            + addPathsByAnnotatedMethods(flowPath, flowCtx, OPTIONS.class)
+            + addPathsByAnnotatedMethods(flowPath, flowCtx, HEAD.class);
 
         checkState((initMethodCount > 0),
-                "can not find ANY init method annotation by GET/PUT/POST/DELETE for type(%s)", flowCls);
+                "can not find ANY init method annotation by GET/PUT/POST/DELETE/OPTIONS/HEAD for type(%s)", flowCls);
 
         if (LOG.isDebugEnabled()) {
             LOG.debug("register flowCtx({}) for path:{}", flowCtx, flowPath);

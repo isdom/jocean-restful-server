@@ -25,6 +25,7 @@ import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
+import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.rx.RxActions;
 import org.jocean.json.JSONProvider;
 import org.jocean.restful.Events;
@@ -63,6 +64,7 @@ import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.util.CharsetUtil;
 import rx.Observable;
 import rx.Subscriber;
+import rx.functions.Func1;
 
 /**
  * @author isdom
@@ -284,7 +286,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
 
                 if (null == flowAndEvent) {
                     // path not found
-                    writeAndFlushResponse(trade, request, null, null);
+                    writeAndFlushResponse(trade, request, null, null, null);
                     return false;
                 }
 
@@ -298,7 +300,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             safeDetachTask();
                             final String responseJson = _jsonProvider.toJSONString(representation);
                             LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback resp:{}", request, responseJson);
-                            writeAndFlushResponse(trade, request, responseJson, _defaultContentType);
+                            writeAndFlushResponse(trade, request, representation, responseJson, _defaultContentType);
                         }
 
                         @Override
@@ -307,7 +309,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             final String responseJson = 
                                     outerName + "(" + _jsonProvider.toJSONString(representation) + ")";
                             LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback resp:{}({})", request, outerName, responseJson);
-                            writeAndFlushResponse(trade, request, responseJson, _defaultContentType);
+                            writeAndFlushResponse(trade, request, representation, responseJson, _defaultContentType);
                         }
 
                         @Override
@@ -317,7 +319,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             safeDetachTask();
                             LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback resp with contentType({}):{}", 
                                     request, contentType, representation);
-                            writeAndFlushResponse(trade, request, representation.toString(), contentType);
+                            writeAndFlushResponse(trade, request, representation, representation.toString(), contentType);
                         }
                         
                         @Override
@@ -369,6 +371,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
     private boolean writeAndFlushResponse(
             final HttpTrade trade, 
             final HttpRequest request, 
+            final Object respBean, 
             final String content, 
             final String contentType) {
         // Decide whether to close the connection or not.
@@ -396,6 +399,10 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
         response.headers().set(HttpHeaders.Names.PRAGMA, HttpHeaders.Values.NO_CACHE);
 
         addExtraHeaders(response);
+        
+        if (null != respBean) {
+            this._respProcessors.get(respBean.getClass()).call(respBean, response);
+        }
         
         trade.outboundResponse(Observable.<HttpObject>just(response));
 
@@ -441,4 +448,10 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
     
     private String _defaultContentType = APPLICATION_JSON_CHARSET_UTF_8;
     private Map<String, String> _extraHeaders;
+    private final SimpleCache<Class<?>, ResponseProcessor> _respProcessors
+        = new SimpleCache<>(new Func1<Class<?>, ResponseProcessor>() {
+            @Override
+            public ResponseProcessor call(final Class<?> clsResponse) {
+                return new ResponseProcessor(clsResponse);
+            }});
 }

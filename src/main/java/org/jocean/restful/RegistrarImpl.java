@@ -67,6 +67,7 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
 
 import com.alibaba.fastjson.JSON;
+import com.google.common.base.Charsets;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
@@ -473,11 +474,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
             } else if ( null != contentType
                     && contentType.startsWith("application/json")) {
                 if (LOG.isDebugEnabled()) {
-                    try {
-                        LOG.debug("createObjectBy: {}", new String(bytes, "UTF-8"));
-                    } catch (UnsupportedEncodingException e) {
-                        LOG.debug("createObjectBy: {}", Arrays.toString(bytes));
-                    }
+                    LOG.debug("createObjectBy: {}", new String(bytes, Charsets.UTF_8));
                 }
                 return JSON.parseObject(bytes, beanField.getType());
             }

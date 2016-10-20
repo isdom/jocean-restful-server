@@ -153,7 +153,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             }
 
             private void onCompleted4Standard() {
-                final FullHttpRequest req = holder.bindHttpObjects(RxNettys.BUILD_FULL_REQUEST).call();
+                final FullHttpRequest req = holder.httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST).call();
                 if (null!=req) {
                     try {
                         final String contentType = req.headers().get(HttpHeaders.Names.CONTENT_TYPE);

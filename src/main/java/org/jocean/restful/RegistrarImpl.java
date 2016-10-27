@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 
 import javax.inject.Inject;
 import javax.ws.rs.BeanParam;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.CookieParam;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -67,6 +68,9 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
 
 import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
@@ -477,6 +481,18 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                     LOG.debug("createObjectBy: {}", new String(bytes, Charsets.UTF_8));
                 }
                 return JSON.parseObject(bytes, beanField.getType());
+            } else if (isParseAsXml(contentType, beanField)) {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("createObjectBy XML Format: {}", new String(bytes, Charsets.UTF_8));
+                }
+                final XmlMapper mapper = new XmlMapper();
+                try {
+                    return mapper.readValue(bytes, beanField.getType());
+                } catch (Exception e) {
+                    LOG.warn("exception when parse xml {}, detail: {}",
+                            new String(bytes, Charsets.UTF_8), 
+                            ExceptionUtils.exception2detail(e));
+                }
             }
         } 
         try {
@@ -487,7 +503,34 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
             return null;
         }
     }
+    
+    private static boolean isParseAsXml(final String contentType, final Field beanField) {
+        return (null != contentType
+                && (contentType.startsWith("application/xml")
+                 || contentType.startsWith("text/xml"))
+                && isMatchMediatype(contentType, beanField));
+    }
 
+    private static boolean isMatchMediatype(final String contentType,
+            final Field beanField) {
+        if (null == contentType) {
+            return false;
+        }
+        final Consumes consumes = beanField.getType().getAnnotation(Consumes.class);
+        if (null == consumes) {
+            return false;
+        }
+        for (String mediaType : consumes.value()) {
+            if ( "*/*".equals(mediaType)) {
+                return true;
+            }
+            if (contentType.startsWith(mediaType)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
     private Pair<FlowContext, Map<String, String>> findContextByMethodAndPath(
             final String httpMethod, final String rawPath) {
 

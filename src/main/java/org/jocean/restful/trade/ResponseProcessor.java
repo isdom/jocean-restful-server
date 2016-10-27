@@ -10,7 +10,7 @@ import org.jocean.idiom.ReflectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import rx.functions.Action2;
@@ -42,7 +42,7 @@ public class ResponseProcessor implements Action2<Object, HttpResponse> {
                     if ( null != value ) {
                         final String cookiename = 
                             field.getAnnotation(CookieParam.class).value();
-                        resp.headers().set(HttpHeaders.Names.SET_COOKIE, 
+                        resp.headers().set(HttpHeaderNames.SET_COOKIE, 
                                 ServerCookieEncoder.STRICT.encode(cookiename, value.toString()));
                     }
                 } catch (Exception e) {

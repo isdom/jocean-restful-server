@@ -52,6 +52,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.multipart.Attribute;
 import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
@@ -90,7 +91,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
     
     public void destroy() {
         //  clean up all leak HttpDatas
-        HTTP_DATA_FACTORY.cleanAllHttpDatas();
+        HTTP_DATA_FACTORY.cleanAllHttpData();
     }
     
     @Override
@@ -190,7 +191,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             public void onNext(final HttpObject msg) {
                 if (msg instanceof HttpRequest) {
                     this._request = (HttpRequest)msg;
-                    if ( this._request.getMethod().equals(HttpMethod.POST)
+                    if ( this._request.method().equals(HttpMethod.POST)
                             && HttpPostRequestDecoder.isMultipart(this._request)) {
                         this._isMultipart = true;
                         this._postDecoder = new HttpPostRequestDecoder(
@@ -327,7 +328,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             safeDetachTask();
                             LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback http-resp:{}", 
                                     request, response);
-                            final boolean keepAlive = isKeepAlive(request);
+                            final boolean keepAlive = HttpUtil.isKeepAlive(request);
                             if (keepAlive) {
                                 // Add keep alive header as per:
                                 // - http://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01.html#Connection
@@ -375,10 +376,10 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             final String content, 
             final String contentType) {
         // Decide whether to close the connection or not.
-        final boolean keepAlive = isKeepAlive(request);
+        final boolean keepAlive = HttpUtil.isKeepAlive(request);
         // Build the response object.
         final FullHttpResponse response = new DefaultFullHttpResponse(
-                request.getProtocolVersion(), 
+                request.protocolVersion(), 
                 (null != content ? OK : NO_CONTENT),
                 (null != content ? Unpooled.copiedBuffer(content, CharsetUtil.UTF_8) : Unpooled.buffer(0)));
 
@@ -427,7 +428,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
     }
 
     private static boolean isPostWithForm(final FullHttpRequest req) {
-        return req.getMethod().equals(HttpMethod.POST)
+        return req.method().equals(HttpMethod.POST)
           && req.headers().contains(HttpHeaders.Names.CONTENT_TYPE)
           && req.headers().get(HttpHeaders.Names.CONTENT_TYPE)
               .startsWith(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED);

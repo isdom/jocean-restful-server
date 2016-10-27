@@ -44,7 +44,6 @@ import io.netty.handler.codec.http.multipart.HttpDataFactory;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.EndOfDataDecoderException;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
-import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.IncompatibleDataDecoderException;
 import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
 import io.netty.util.CharsetUtil;
@@ -164,7 +163,9 @@ public class HttpUploadServerHandler extends SimpleChannelInboundHandler<HttpObj
                 writeResponse(ctx.channel());
                 ctx.channel().close();
                 return;
-            } catch (IncompatibleDataDecoderException e1) {
+            }
+            /*
+            catch (IncompatibleDataDecoderException e1) {
                 // GET Method: should not try to create a HttpPostRequestDecoder
                 // So OK but stop here
                 responseContent.append(e1.getMessage());
@@ -172,6 +173,7 @@ public class HttpUploadServerHandler extends SimpleChannelInboundHandler<HttpObj
                 writeResponse(ctx.channel());
                 return;
             }
+            */
 
             readingChunks = HttpHeaders.isTransferEncodingChunked(request);
             responseContent.append("Is Chunked: " + readingChunks + "\r\n");

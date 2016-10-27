@@ -77,7 +77,7 @@ import com.google.common.io.ByteStreams;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.EmptyByteBuf;
-import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
@@ -248,12 +248,12 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
             final ByteBuf content,
             final Map<String, List<String>> formParameters
             ) throws Exception {
-        final QueryStringDecoder decoder = new QueryStringDecoder(request.getUri());
+        final QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
 
         final String rawPath = getRawPath(decoder.path());
 
         final Pair<FlowContext, Map<String, String>> ctxAndParamValues =
-                findContextByMethodAndPath(request.getMethod().name(), rawPath);
+                findContextByMethodAndPath(request.method().name(), rawPath);
 
         if (null == ctxAndParamValues) {
             return null;
@@ -385,7 +385,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                     injectParamValue(queryParamValues.get(key), obj, field);
                 }
                 if ("".equals(key)) {
-                    injectValueToField(rawQuery(request.getUri()), obj, field);
+                    injectValueToField(rawQuery(request.uri()), obj, field);
                 }
             }
         }
@@ -400,7 +400,7 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
         }
 
         if (null != params._cookieParams) {
-            final String rawCookie = request.headers().get(HttpHeaders.Names.COOKIE);
+            final String rawCookie = request.headers().get(HttpHeaderNames.COOKIE);
             if (null != rawCookie) {
                 final Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(rawCookie);
                 if (!cookies.isEmpty()) {

@@ -12,7 +12,7 @@ dependencies {
     compile 'javax.inject:javax.inject:1'
     compile "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
     compile "org.springframework:spring-context:${springVersion}"
-    compile 'com.google.guava:guava:19.0'
+    compile "com.google.guava:guava:${guavaVersion}"
     compile 'net.sf.ehcache:ehcache:2.9.0'
     
     /* jocean */

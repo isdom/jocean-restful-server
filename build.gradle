@@ -14,7 +14,7 @@ dependencies {
     compile "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${jacksonVersion}"
     compile "org.springframework:spring-context:${springVersion}"
     compile "com.google.guava:guava:${guavaVersion}"
-    compile 'net.sf.ehcache:ehcache:2.9.0'
+    compile 'net.sf.ehcache:ehcache:2.10.3'
     
     /* jocean */
     compile 'org.jocean:jocean-idiom:0.1.4-SNAPSHOT'

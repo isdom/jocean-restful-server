@@ -27,11 +27,13 @@ import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.rx.RxActions;
+import org.jocean.idiom.rx.RxSubscribers;
 import org.jocean.json.JSONProvider;
 import org.jocean.restful.Events;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
 import org.jocean.restful.Registrar;
+import org.jocean.restful.TradeInboundAware;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,8 +111,19 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
     @Override
     public void onNext(final HttpTrade trade) {
         final HttpMessageHolder holder = new HttpMessageHolder(0);
-        final Subscriber<HttpObject> subscriber = 
-                new Subscriber<HttpObject>() {
+        final Observable<? extends HttpObject> inbound = 
+            trade.doOnClosed(RxActions.<HttpTrade>toAction1(holder.release()))
+            .inboundRequest()
+            .compose(holder.assembleAndHold());
+        
+        inbound.subscribe(buildInboundSubscriber(trade, holder, inbound));
+    }
+
+    private Subscriber<HttpObject> buildInboundSubscriber(
+            final HttpTrade trade,
+            final HttpMessageHolder holder, 
+            final Observable<? extends HttpObject> inbound) {
+        return new Subscriber<HttpObject>() {
             private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();
             private Detachable _task = null;
             private EventReceiver _receiver;
@@ -163,6 +176,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
+                                        inbound,
                                         req, 
                                         contentType,
                                         req.content(), 
@@ -173,6 +187,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
+                                        inbound,
                                         req, 
                                         contentType,
                                         req.content(), 
@@ -237,6 +252,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             this._isRequestHandled = 
                                 createAndInvokeRestfulBusiness(
                                         trade,
+                                        inbound,
                                         this._request, 
                                         fileUpload.getContentType(),
                                         content, 
@@ -277,6 +293,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             
             private boolean createAndInvokeRestfulBusiness(
                     final HttpTrade trade,
+                    final Observable<? extends HttpObject> inbound, 
                     final HttpRequest request, 
                     final String  contentType,
                     final ByteBuf content, 
@@ -344,6 +361,12 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                     LOG.warn("exception when call flow({})'s setOutputReactor, detail:{}",
                             flow, ExceptionUtils.exception2detail(e));
                 }
+                if (flow instanceof TradeInboundAware) {
+                    final Observable<? extends HttpObject> cached = inbound.cache();
+                    //  force cached to subscribe upstream
+                    cached.subscribe(RxSubscribers.nopOnNext(), RxSubscribers.nopOnError());
+                    ((TradeInboundAware)flow).setTradeInbound(cached);
+                }
                 this._receiver = flow.queryInterfaceInstance(EventReceiver.class);
                 this._receiver.acceptEvent(flowAndEvent.getSecond());
 
@@ -362,11 +385,6 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                 }
             }
         };
-        
-        trade.doOnClosed(RxActions.<HttpTrade>toAction1(holder.release()))
-            .inboundRequest()
-            .compose(holder.assembleAndHold())
-            .subscribe(subscriber);
     }
     
     private boolean writeAndFlushResponse(

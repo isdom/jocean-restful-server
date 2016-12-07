@@ -3,7 +3,6 @@
  */
 package org.jocean.restful.trade;
 
-import static io.netty.handler.codec.http.HttpHeaders.isKeepAlive;
 import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
@@ -116,13 +115,17 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             .inboundRequest()
             .compose(holder.assembleAndHold());
         
-        inbound.subscribe(buildInboundSubscriber(trade, holder, inbound));
+        final Observable<? extends HttpObject> cached = inbound.cache();
+        //  force cached to subscribe upstream
+        cached.subscribe(RxSubscribers.nopOnNext(), RxSubscribers.nopOnError());
+        
+        inbound.subscribe(buildInboundSubscriber(trade, holder, cached));
     }
 
     private Subscriber<HttpObject> buildInboundSubscriber(
             final HttpTrade trade,
             final HttpMessageHolder holder, 
-            final Observable<? extends HttpObject> inbound) {
+            final Observable<? extends HttpObject> cached) {
         return new Subscriber<HttpObject>() {
             private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();
             private Detachable _task = null;
@@ -176,7 +179,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
-                                        inbound,
+                                        cached,
                                         req, 
                                         contentType,
                                         req.content(), 
@@ -187,7 +190,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
-                                        inbound,
+                                        cached,
                                         req, 
                                         contentType,
                                         req.content(), 
@@ -252,7 +255,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             this._isRequestHandled = 
                                 createAndInvokeRestfulBusiness(
                                         trade,
-                                        inbound,
+                                        cached,
                                         this._request, 
                                         fileUpload.getContentType(),
                                         content, 
@@ -293,7 +296,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             
             private boolean createAndInvokeRestfulBusiness(
                     final HttpTrade trade,
-                    final Observable<? extends HttpObject> inbound, 
+                    final Observable<? extends HttpObject> cached, 
                     final HttpRequest request, 
                     final String  contentType,
                     final ByteBuf content, 
@@ -362,9 +365,6 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             flow, ExceptionUtils.exception2detail(e));
                 }
                 if (flow instanceof TradeInboundAware) {
-                    final Observable<? extends HttpObject> cached = inbound.cache();
-                    //  force cached to subscribe upstream
-                    cached.subscribe(RxSubscribers.nopOnNext(), RxSubscribers.nopOnError());
                     ((TradeInboundAware)flow).setTradeInbound(cached);
                 }
                 this._receiver = flow.queryInterfaceInstance(EventReceiver.class);

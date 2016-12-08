@@ -115,13 +115,11 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             .inboundRequest()
             .compose(holder.assembleAndHold());
         
-        /*
         final Observable<? extends HttpObject> cached = inbound.cache();
         //  force cached to subscribe upstream
         cached.subscribe(RxSubscribers.nopOnNext(), RxSubscribers.nopOnError());
-        */
         
-        inbound.subscribe(buildInboundSubscriber(trade, holder, inbound/*cached*/));
+        inbound.subscribe(buildInboundSubscriber(trade, holder, cached));
     }
 
     private Subscriber<HttpObject> buildInboundSubscriber(

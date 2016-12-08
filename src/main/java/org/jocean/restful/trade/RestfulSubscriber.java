@@ -26,7 +26,6 @@ import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.rx.RxActions;
-import org.jocean.idiom.rx.RxSubscribers;
 import org.jocean.json.JSONProvider;
 import org.jocean.restful.Events;
 import org.jocean.restful.OutputReactor;
@@ -66,6 +65,7 @@ import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.util.CharsetUtil;
 import rx.Observable;
 import rx.Subscriber;
+import rx.functions.Func0;
 import rx.functions.Func1;
 
 /**
@@ -116,15 +116,15 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             .compose(holder.assembleAndHold());
         
         final Observable<? extends HttpObject> cached = inbound.cache();
-        //  force cached to subscribe upstream
-        cached.subscribe(RxSubscribers.nopOnNext(), RxSubscribers.nopOnError());
         
-        inbound.subscribe(buildInboundSubscriber(trade, holder, cached));
+        cached.subscribe(buildInboundSubscriber(trade, 
+                holder.httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST), 
+                cached));
     }
 
     private Subscriber<HttpObject> buildInboundSubscriber(
             final HttpTrade trade,
-            final HttpMessageHolder holder, 
+            final Func0<FullHttpRequest> buildFullReq,
             final Observable<? extends HttpObject> cached) {
         return new Subscriber<HttpObject>() {
             private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();
@@ -170,7 +170,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             }
 
             private void onCompleted4Standard() {
-                final FullHttpRequest req = holder.httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST).call();
+                final FullHttpRequest req = buildFullReq.call();
                 if (null!=req) {
                     try {
                         final String contentType = req.headers().get(HttpHeaders.Names.CONTENT_TYPE);

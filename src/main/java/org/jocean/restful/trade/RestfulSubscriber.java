@@ -115,13 +115,23 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             .inboundRequest()
             .compose(holder.assembleAndHold());
         
-        final Observable<? extends HttpObject> cached = inbound.cache();
+        final Observable<? extends HttpObject> cached = inbound.cache()
+                .map(new Func1<HttpObject, HttpObject>() {
+                    @Override
+                    public HttpObject call(final HttpObject httpobj) {
+                        if (httpobj instanceof HttpContent) {
+                            return ((HttpContent)httpobj).duplicate();
+                        } else {
+                            return httpobj;
+                        }
+                    }});
         
         cached.subscribe(buildInboundSubscriber(trade, 
                 holder.httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST), 
                 cached));
     }
 
+    //  TODO, replace 'HttpTrade trade' with Func1/2<Observable<? extends HttpObject> response / final Action1<Throwable> onError>
     private Subscriber<HttpObject> buildInboundSubscriber(
             final HttpTrade trade,
             final Func0<FullHttpRequest> buildFullReq,

@@ -48,6 +48,7 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
@@ -111,7 +112,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
     public void onNext(final HttpTrade trade) {
         final HttpMessageHolder holder = new HttpMessageHolder(0);
         final Observable<? extends HttpObject> cached = 
-            trade.doOnClosed(RxActions.<HttpTrade>toAction1(holder.release()))
+            trade.addCloseHook(RxActions.<HttpTrade>toAction1(holder.release()))
             .inboundRequest()
             .compose(holder.assembleAndHold())
             .cache()
@@ -175,7 +176,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                 final FullHttpRequest req = buildFullReq.call();
                 if (null!=req) {
                     try {
-                        final String contentType = req.headers().get(HttpHeaders.Names.CONTENT_TYPE);
+                        final String contentType = req.headers().get(HttpHeaderNames.CONTENT_TYPE);
                         if (isPostWithForm(req)) {
                             final String queryString = toQueryString(req.content());
                             this._isRequestHandled =

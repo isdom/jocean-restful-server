@@ -3,9 +3,6 @@
  */
 package org.jocean.restful.trade;
 
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_LENGTH;
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
@@ -15,10 +12,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.jocean.event.api.EventReceiver;
-import org.jocean.event.api.PairedGuardEventable;
 import org.jocean.http.server.HttpServerBuilder.HttpTrade;
 import org.jocean.http.util.HttpMessageHolder;
-import org.jocean.http.util.Nettys;
 import org.jocean.http.util.RxNettys;
 import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
@@ -27,7 +22,6 @@ import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.rx.RxActions;
 import org.jocean.json.JSONProvider;
-import org.jocean.restful.Events;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
 import org.jocean.restful.Registrar;
@@ -49,7 +43,7 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
@@ -77,9 +71,6 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(RestfulSubscriber.class);
-
-    private static final PairedGuardEventable ONFILEUPLOAD_EVENT = 
-            new PairedGuardEventable(Nettys._NETTY_REFCOUNTED_GUARD, Events.ON_FILEUPLOAD);
 
     private static final String APPLICATION_JSON_CHARSET_UTF_8 = 
             "application/json; charset=UTF-8";
@@ -167,9 +158,9 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             }
             
             private void onCompleted4Multipart() {
-                if (null!=this._receiver) {
-                    this._receiver.acceptEvent(Events.ON_FILEUPLOAD_COMPLETED);
-                }
+//                if (null!=this._receiver) {
+//                    this._receiver.acceptEvent(Events.ON_FILEUPLOAD_COMPLETED);
+//                }
             }
 
             private void onCompleted4Standard() {
@@ -267,12 +258,13 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
                                     ExceptionUtils.exception2detail(e));
                         }
-                        if (null!=this._receiver && !isJson(fileUpload)) {
-                            this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
-                        }
-                    } else {
-                        this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
-                    }
+//                        if (null!=this._receiver && !isJson(fileUpload)) {
+//                            this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
+//                        }
+                    } 
+//                    else {
+//                        this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
+//                    }
                 } else if (data.getHttpDataType().equals(
                         InterfaceHttpData.HttpDataType.Attribute)) {
                     final Attribute attribute = (Attribute) data;
@@ -355,7 +347,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             if (keepAlive) {
                                 // Add keep alive header as per:
                                 // - http://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01.html#Connection
-                                response.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+                                response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
                             }
 
                             addExtraHeaders(response);
@@ -405,20 +397,20 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                 (null != content ? Unpooled.copiedBuffer(content, CharsetUtil.UTF_8) : Unpooled.buffer(0)));
 
         if (null != content) {
-            response.headers().set(CONTENT_TYPE, contentType);
+            response.headers().set(HttpHeaderNames.CONTENT_TYPE, contentType);
         }
 
         // Add 'Content-Length' header only for a keep-alive connection.
-        response.headers().set(CONTENT_LENGTH, response.content().readableBytes());
+        response.headers().set(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
         
         if (keepAlive) {
             // Add keep alive header as per:
             // - http://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01.html#Connection
-            response.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+            response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
         }
 
-        response.headers().set(HttpHeaders.Names.CACHE_CONTROL, HttpHeaders.Values.NO_STORE);
-        response.headers().set(HttpHeaders.Names.PRAGMA, HttpHeaders.Values.NO_CACHE);
+        response.headers().set(HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_STORE);
+        response.headers().set(HttpHeaderNames.PRAGMA, HttpHeaderValues.NO_CACHE);
 
         addExtraHeaders(response);
         
@@ -450,9 +442,9 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
 
     private static boolean isPostWithForm(final FullHttpRequest req) {
         return req.method().equals(HttpMethod.POST)
-          && req.headers().contains(HttpHeaders.Names.CONTENT_TYPE)
-          && req.headers().get(HttpHeaders.Names.CONTENT_TYPE)
-              .startsWith(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED);
+          && req.headers().contains(HttpHeaderNames.CONTENT_TYPE)
+          && req.headers().get(HttpHeaderNames.CONTENT_TYPE)
+              .startsWith(HttpHeaderValues.APPLICATION_X_WWW_FORM_URLENCODED.toString());
     }
 
     public void setDefaultContentType(final String defaultContentType) {

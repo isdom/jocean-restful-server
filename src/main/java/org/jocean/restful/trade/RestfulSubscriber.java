@@ -105,7 +105,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
         final Observable<? extends HttpObject> cached = 
             trade.addCloseHook(RxActions.<HttpTrade>toAction1(holder.release()))
             .inboundRequest()
-            .compose(holder.assembleAndHold())
+            .compose(holder.<HttpObject>assembleAndHold())
             .cache()
             .compose(RxNettys.duplicateHttpContent())
             ;

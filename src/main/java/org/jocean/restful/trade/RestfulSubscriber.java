@@ -13,14 +13,12 @@ import java.util.Map;
 
 import org.jocean.event.api.EventReceiver;
 import org.jocean.http.server.HttpServerBuilder.HttpTrade;
-import org.jocean.http.util.HttpMessageHolder;
 import org.jocean.http.util.RxNettys;
 import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
-import org.jocean.idiom.rx.RxActions;
 import org.jocean.json.JSONProvider;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
@@ -101,18 +99,9 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
 
     @Override
     public void onNext(final HttpTrade trade) {
-        final HttpMessageHolder holder = new HttpMessageHolder(0);
-        final Observable<? extends HttpObject> cached = 
-            trade.addCloseHook(RxActions.<HttpTrade>toAction1(holder.release()))
-            .inboundRequest()
-            .compose(holder.<HttpObject>assembleAndHold())
-            .cache()
-            .compose(RxNettys.duplicateHttpContent())
-            ;
-        
-        cached.subscribe(buildInboundSubscriber(trade, 
-                holder.httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST), 
-                cached));
+        trade.inboundRequest().subscribe(buildInboundSubscriber(trade, 
+                trade.inboundHolder().httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST), 
+                trade.inboundRequest()));
     }
 
     //  TODO, replace 'HttpTrade trade' with Func1/2<Observable<? extends HttpObject> response / final Action1<Throwable> onError>

@@ -3,7 +3,7 @@
  */
 package org.jocean.restful.trade;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import java.io.IOException;
@@ -382,7 +382,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
         // Build the response object.
         final FullHttpResponse response = new DefaultFullHttpResponse(
                 request.protocolVersion(), 
-                (null != content ? OK : NO_CONTENT),
+                (null != content ? OK : NOT_FOUND),
                 (null != content ? Unpooled.copiedBuffer(content, CharsetUtil.UTF_8) : Unpooled.buffer(0)));
 
         if (null != content) {

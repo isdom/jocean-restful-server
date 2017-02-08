@@ -19,9 +19,12 @@ import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
+import org.jocean.idiom.rx.RxActions;
 import org.jocean.json.JSONProvider;
+import org.jocean.netty.util.ReferenceCountedHolder;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
+import org.jocean.restful.ReferenceCountedHolderAware;
 import org.jocean.restful.Registrar;
 import org.jocean.restful.TradeInboundAware;
 import org.slf4j.Logger;
@@ -104,7 +107,6 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                 trade.inboundRequest()));
     }
 
-    //  TODO, replace 'HttpTrade trade' with Func1/2<Observable<? extends HttpObject> response / final Action1<Throwable> onError>
     private Subscriber<HttpObject> buildInboundSubscriber(
             final HttpTrade trade,
             final Func0<FullHttpRequest> buildFullReq,
@@ -351,6 +353,12 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                 if (flow instanceof TradeInboundAware) {
                     ((TradeInboundAware)flow).setTradeInbound(cached);
                 }
+                if (flow instanceof ReferenceCountedHolderAware) {
+                    final ReferenceCountedHolder holder = new ReferenceCountedHolder();
+                    trade.addCloseHook(RxActions.<HttpTrade>toAction1(holder.release()));
+                    ((ReferenceCountedHolderAware)flow).setHolder(holder);
+                }
+                
                 this._receiver = flow.queryInterfaceInstance(EventReceiver.class);
                 this._receiver.acceptEvent(flowAndEvent.getSecond());
 

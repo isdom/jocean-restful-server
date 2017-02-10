@@ -21,7 +21,10 @@ import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.rx.RxActions;
 import org.jocean.json.JSONProvider;
+import org.jocean.netty.BlobRepo.Blob;
 import org.jocean.netty.util.ReferenceCountedHolder;
+import org.jocean.restful.BlobSource;
+import org.jocean.restful.BlobSourceAware;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
 import org.jocean.restful.ReferenceCountedHolderAware;
@@ -61,6 +64,7 @@ import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.util.CharsetUtil;
 import rx.Observable;
 import rx.Subscriber;
+import rx.functions.Action1;
 import rx.functions.Func0;
 import rx.functions.Func1;
 
@@ -358,6 +362,9 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                     trade.addCloseHook(RxActions.<HttpTrade>toAction1(holder.release()));
                     ((ReferenceCountedHolderAware)flow).setHolder(holder);
                 }
+                if (flow instanceof BlobSourceAware) {
+                    ((BlobSourceAware)flow).setBlobSource(buildBlobSource(trade));
+                }
                 
                 this._receiver = flow.queryInterfaceInstance(EventReceiver.class);
                 this._receiver.acceptEvent(flowAndEvent.getSecond());
@@ -379,6 +386,29 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
         };
     }
     
+    private BlobSource buildBlobSource(final HttpTrade trade) {
+        final ReferenceCountedHolder holder = new ReferenceCountedHolder();
+        trade.addCloseHook(RxActions.<HttpTrade>toAction1(holder.release()));
+        
+        return new BlobSource() {
+            @Override
+            public Observable<? extends Blob> toBlobs(
+                    final String contentTypePrefix,
+                    final boolean releaseRequestASAP) {
+                return trade.inboundRequest()
+                    .compose(RxNettys.postRequest2Blob(contentTypePrefix, holder));
+            }
+
+            @Override
+            public Action1<Blob> releaseBlob() {
+                return new Action1<Blob>() {
+                    @Override
+                    public void call(final Blob blob) {
+                        holder.releaseUntil(blob);
+                    }};
+            }};
+    }
+
     private boolean writeAndFlushResponse(
             final HttpTrade trade, 
             final HttpRequest request, 

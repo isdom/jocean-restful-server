@@ -27,7 +27,6 @@ import org.jocean.restful.BlobSource;
 import org.jocean.restful.BlobSourceAware;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
-import org.jocean.restful.ReferenceCountedHolderAware;
 import org.jocean.restful.Registrar;
 import org.jocean.restful.TradeInboundAware;
 import org.slf4j.Logger;
@@ -357,11 +356,6 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                 if (flow instanceof TradeInboundAware) {
                     ((TradeInboundAware)flow).setTradeInbound(cached);
                 }
-                if (flow instanceof ReferenceCountedHolderAware) {
-                    final ReferenceCountedHolder holder = new ReferenceCountedHolder();
-                    trade.addCloseHook(RxActions.<HttpTrade>toAction1(holder.release()));
-                    ((ReferenceCountedHolderAware)flow).setHolder(holder);
-                }
                 if (flow instanceof BlobSourceAware) {
                     ((BlobSourceAware)flow).setBlobSource(buildBlobSource(trade));
                 }
@@ -396,7 +390,9 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                     final String contentTypePrefix,
                     final boolean releaseRequestASAP) {
                 return trade.inboundRequest()
-                    .compose(RxNettys.postRequest2Blob(contentTypePrefix, holder));
+                    .compose(RxNettys.postRequest2Blob(contentTypePrefix, 
+                            holder, 
+                            releaseRequestASAP ? trade.inboundHolder() : null));
             }
 
             @Override

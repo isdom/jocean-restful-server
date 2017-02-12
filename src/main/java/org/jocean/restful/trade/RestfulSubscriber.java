@@ -125,6 +125,10 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             private HttpRequest _request;
           
             private void destructor() {
+                destroyPostDecoder();
+            }
+
+            private void destroyPostDecoder() {
                 if (null!=this._postDecoder) {
                     // HttpPostRequestDecoder's destroy call HttpDataFactory.cleanRequestHttpDatas
                     //  so no need to cleanRequestHttpDatas outside
@@ -212,28 +216,32 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             }
 
             private void onNext4Multipart(HttpContent content) {
-                try {
-                    this._postDecoder.offer(content);
-                } catch (ErrorDataDecoderException e) {
-                    //  TODO
-                }
-                try {
-                    while (this._postDecoder.hasNext()) {
-                        final InterfaceHttpData data = this._postDecoder.next();
-                        if (data != null) {
-                            try {
-                                processHttpData(data);
-                            } finally {
-                                data.release();
+                if (null!=this._postDecoder) {
+                    try {
+                        this._postDecoder.offer(content);
+                    } catch (ErrorDataDecoderException e) {
+                        //  TODO
+                    }
+                    try {
+                        while (this._postDecoder.hasNext()) {
+                            final InterfaceHttpData data = this._postDecoder.next();
+                            if (data != null) {
+                                try {
+                                    if ( !processHttpData(data) ) {
+                                        destroyPostDecoder();
+                                    }
+                                } finally {
+                                    data.release();
+                                }
                             }
                         }
+                    } catch (EndOfDataDecoderException e) {
+                        //  TODO
                     }
-                } catch (EndOfDataDecoderException e) {
-                    //  TODO
                 }
             }
             
-            private void processHttpData(final InterfaceHttpData data) {
+            private boolean processHttpData(final InterfaceHttpData data) {
                 if (data.getHttpDataType().equals(
                         InterfaceHttpData.HttpDataType.FileUpload)) {
                     final FileUpload fileUpload = (FileUpload)data;
@@ -252,10 +260,13 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
                                     ExceptionUtils.exception2detail(e));
                         }
+                        return false;
 //                        if (null!=this._receiver && !isJson(fileUpload)) {
 //                            this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
 //                        }
-                    } 
+                    } else {
+                        return false;
+                    }
 //                    else {
 //                        this._receiver.acceptEvent(ONFILEUPLOAD_EVENT, fileUpload);
 //                    }
@@ -268,8 +279,10 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                         LOG.warn("exception when add form parameters for attr({}), detail: {}", 
                                 attribute, ExceptionUtils.exception2detail(e));
                     }
+                    return true;
                 } else {
                     LOG.warn("not except HttpData:{}, just ignore.", data);
+                    return false;
                 }
             }
             

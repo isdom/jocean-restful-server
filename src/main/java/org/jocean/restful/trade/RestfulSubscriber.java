@@ -229,6 +229,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                                 try {
                                     if ( !processHttpData(data) ) {
                                         destroyPostDecoder();
+                                        break;
                                     }
                                 } finally {
                                     data.release();

@@ -410,6 +410,8 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> implements TradePro
                 final AsBlob asBlob = new AsBlob(contentTypePrefix, 
                         holder, 
                         releaseRequestASAP ? trade.inboundHolder() : null);
+                // 设定writeIndex >= 128K 时，即可 尝试对 undecodedChunk 进行 discardReadBytes()
+                asBlob.setDiscardThreshold(128 * 1024);
                 trade.addCloseHook(RxActions.<HttpTrade>toAction1(asBlob.destroy()));
                 
                 final AtomicInteger _lastAddedSize = new AtomicInteger(0);

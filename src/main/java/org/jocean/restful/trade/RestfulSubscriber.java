@@ -13,6 +13,7 @@ import java.util.Map;
 
 import org.jocean.event.api.EventReceiver;
 import org.jocean.http.server.HttpServerBuilder.HttpTrade;
+import org.jocean.http.util.AsBlob;
 import org.jocean.http.util.RxNettys;
 import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
@@ -20,6 +21,7 @@ import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.rx.RxActions;
+import org.jocean.idiom.rx.RxObservables;
 import org.jocean.json.JSONProvider;
 import org.jocean.netty.BlobRepo.Blob;
 import org.jocean.netty.util.ReferenceCountedHolder;
@@ -403,10 +405,13 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             public Observable<? extends Blob> toBlobs(
                     final String contentTypePrefix,
                     final boolean releaseRequestASAP) {
+                final AsBlob asBlob = new AsBlob(contentTypePrefix, 
+                        holder, 
+                        releaseRequestASAP ? trade.inboundHolder() : null);
+                trade.addCloseHook(RxActions.<HttpTrade>toAction1(asBlob.destroy()));
                 return trade.inboundRequest()
-                    .compose(RxNettys.postRequest2Blob(contentTypePrefix, 
-                            holder, 
-                            releaseRequestASAP ? trade.inboundHolder() : null));
+                    .flatMap(asBlob)
+                    .compose(RxObservables.<Blob>ensureSubscribeAtmostOnce());
             }
 
             @Override

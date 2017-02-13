@@ -534,7 +534,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> implements TradePro
 
     @Override
     public void setMBeanRegister(final MBeanRegister register) {
-        register.registerMBean("type=tradeProcessor", this);
+        register.registerMBean("name=tradeProcessor", this);
     }
 
     @Override

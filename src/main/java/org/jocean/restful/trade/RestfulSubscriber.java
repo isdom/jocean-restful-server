@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jocean.event.api.EventReceiver;
 import org.jocean.http.server.HttpServerBuilder.HttpTrade;
@@ -22,6 +23,8 @@ import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.rx.RxActions;
 import org.jocean.idiom.rx.RxObservables;
+import org.jocean.j2se.jmx.MBeanRegister;
+import org.jocean.j2se.jmx.MBeanRegisterAware;
 import org.jocean.json.JSONProvider;
 import org.jocean.netty.BlobRepo.Blob;
 import org.jocean.netty.util.ReferenceCountedHolder;
@@ -31,6 +34,7 @@ import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
 import org.jocean.restful.Registrar;
 import org.jocean.restful.TradeInboundAware;
+import org.jocean.restful.mbean.TradeProcessorMXBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,7 +77,7 @@ import rx.functions.Func1;
  * @author isdom
  *
  */
-public class RestfulSubscriber extends Subscriber<HttpTrade> {
+public class RestfulSubscriber extends Subscriber<HttpTrade> implements TradeProcessorMXBean, MBeanRegisterAware {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(RestfulSubscriber.class);
@@ -108,14 +112,12 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
     @Override
     public void onNext(final HttpTrade trade) {
         trade.inboundRequest().subscribe(buildInboundSubscriber(trade, 
-                trade.inboundHolder().httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST), 
-                trade.inboundRequest()));
+                trade.inboundHolder().httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST)));
     }
 
     private Subscriber<HttpObject> buildInboundSubscriber(
             final HttpTrade trade,
-            final Func0<FullHttpRequest> buildFullReq,
-            final Observable<? extends HttpObject> cached) {
+            final Func0<FullHttpRequest> buildFullReq) {
         return new Subscriber<HttpObject>() {
             private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();
             private Detachable _task = null;
@@ -173,7 +175,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
-                                        cached,
+                                        trade.inboundRequest(),
                                         req, 
                                         contentType,
                                         req.content(), 
@@ -184,7 +186,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
-                                        cached,
+                                        trade.inboundRequest(),
                                         req, 
                                         contentType,
                                         req.content(), 
@@ -254,7 +256,7 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                             this._isRequestHandled = 
                                 createAndInvokeRestfulBusiness(
                                         trade,
-                                        cached,
+                                        trade.inboundRequest(),
                                         this._request, 
                                         fileUpload.getContentType(),
                                         content, 
@@ -409,7 +411,26 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
                         holder, 
                         releaseRequestASAP ? trade.inboundHolder() : null);
                 trade.addCloseHook(RxActions.<HttpTrade>toAction1(asBlob.destroy()));
+                
+                final AtomicInteger _lastAddedSize = new AtomicInteger(0);
+                trade.addCloseHook(new Action1<HttpTrade>() {
+                    @Override
+                    public void call(final HttpTrade t) {
+                        updateCurrentUndecodedSize(-_lastAddedSize.getAndSet(-1));
+                    }});
+                
                 return trade.inboundRequest()
+                    .doOnNext(new Action1<HttpObject>() {
+                        @Override
+                        public void call(final HttpObject obj) {
+                            final int currentsize = asBlob.currentUndecodedSize();
+                            final int lastsize = _lastAddedSize.getAndSet(currentsize);
+                            if (lastsize >= 0) { // -1 means trade has closed
+                                updateCurrentUndecodedSize(currentsize - lastsize);
+                            } else {
+                                //  TODO? set lastsize (== -1) back to _lastAddedSize ?
+                            }
+                        }})
                     .flatMap(asBlob)
                     .compose(RxObservables.<Blob>ensureSubscribeAtmostOnce());
             }
@@ -510,4 +531,39 @@ public class RestfulSubscriber extends Subscriber<HttpTrade> {
             public ResponseProcessor call(final Class<?> clsResponse) {
                 return new ResponseProcessor(clsResponse);
             }});
+
+    @Override
+    public void setMBeanRegister(final MBeanRegister register) {
+        register.registerMBean("type=tradeProcessor", this);
+    }
+
+    @Override
+    public int getCurrentUndecodedSize() {
+        return this._currentUndecodedSize.get();
+    }
+    
+    @Override
+    public int getPeakUndecodedSize() {
+        return this._peakUndecodedSize.get();
+    }
+    
+    private final AtomicInteger  _currentUndecodedSize = new AtomicInteger(0);
+    private final AtomicInteger  _peakUndecodedSize = new AtomicInteger(0);
+
+    private void updateCurrentUndecodedSize(final int delta) {
+        final int current = this._currentUndecodedSize.addAndGet(delta);
+        if (delta > 0) {
+            boolean updated = false;
+            
+            do {
+                // try to update peak memory value
+                final int peak = this._peakUndecodedSize.get();
+                if (current > peak) {
+                    updated = this._peakUndecodedSize.compareAndSet(peak, current);
+                } else {
+                    break;
+                }
+            } while (!updated);
+        }
+    }
 }

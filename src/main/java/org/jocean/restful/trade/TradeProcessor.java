@@ -77,15 +77,15 @@ import rx.functions.Func1;
  * @author isdom
  *
  */
-public class RestfulSubscriber extends Subscriber<HttpTrade> implements TradeProcessorMXBean, MBeanRegisterAware {
+public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProcessorMXBean, MBeanRegisterAware {
 
     private static final Logger LOG =
-            LoggerFactory.getLogger(RestfulSubscriber.class);
+            LoggerFactory.getLogger(TradeProcessor.class);
 
     private static final String APPLICATION_JSON_CHARSET_UTF_8 = 
             "application/json; charset=UTF-8";
     
-    public RestfulSubscriber(
+    public TradeProcessor(
             final Registrar<?>  registrar,
             final JSONProvider  jsonProvider) {
         this._registrar = registrar;

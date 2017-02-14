@@ -50,7 +50,7 @@
         factory-method="subscribe"
         destroy-method="unsubscribe">
         <constructor-arg>
-            <bean class="org.jocean.restful.trade.RestfulSubscriber">
+            <bean class="org.jocean.restful.trade.TradeProcessor">
 		        <constructor-arg ref="registrar" />
 		        <constructor-arg ref="jsonProvider" />
 		        <property name="defaultContentType" value="${restful.default.contenttype:application/json; charset=UTF-8}"/>

@@ -111,8 +111,8 @@ public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProces
 
     @Override
     public void onNext(final HttpTrade trade) {
-        trade.inboundRequest().subscribe(buildInboundSubscriber(trade, 
-                trade.inboundHolder().httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST)));
+        trade.inbound().message().subscribe(buildInboundSubscriber(trade, 
+                trade.inbound().messageHolder().httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST)));
     }
 
     private Subscriber<HttpObject> buildInboundSubscriber(
@@ -175,7 +175,7 @@ public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProces
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
-                                        trade.inboundRequest(),
+                                        trade.inbound().message(),
                                         req, 
                                         contentType,
                                         req.content(), 
@@ -186,7 +186,7 @@ public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProces
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
-                                        trade.inboundRequest(),
+                                        trade.inbound().message(),
                                         req, 
                                         contentType,
                                         req.content(), 
@@ -256,7 +256,7 @@ public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProces
                             this._isRequestHandled = 
                                 createAndInvokeRestfulBusiness(
                                         trade,
-                                        trade.inboundRequest(),
+                                        trade.inbound().message(),
                                         this._request, 
                                         fileUpload.getContentType(),
                                         content, 
@@ -409,7 +409,7 @@ public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProces
                     final boolean releaseRequestASAP) {
                 final AsBlob asBlob = new AsBlob(contentTypePrefix, 
                         holder, 
-                        releaseRequestASAP ? trade.inboundHolder() : null);
+                        releaseRequestASAP ? trade.inbound().messageHolder() : null);
                 // 设定writeIndex >= 128K 时，即可 尝试对 undecodedChunk 进行 discardReadBytes()
                 asBlob.setDiscardThreshold(128 * 1024);
                 trade.addCloseHook(RxActions.<HttpTrade>toAction1(asBlob.destroy()));
@@ -421,7 +421,7 @@ public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProces
                         updateCurrentUndecodedSize(-_lastAddedSize.getAndSet(-1));
                     }});
                 
-                return trade.inboundRequest()
+                return trade.inbound().message()
                     .doOnNext(new Action1<HttpObject>() {
                         @Override
                         public void call(final HttpObject obj) {

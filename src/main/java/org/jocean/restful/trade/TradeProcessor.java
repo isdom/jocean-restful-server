@@ -15,7 +15,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.jocean.event.api.EventReceiver;
 import org.jocean.http.server.HttpServerBuilder.HttpTrade;
 import org.jocean.http.util.AsBlob;
+import org.jocean.http.util.InboundSpeedController;
 import org.jocean.http.util.RxNettys;
+import org.jocean.idiom.BeanHolder;
+import org.jocean.idiom.BeanHolderAware;
 import org.jocean.idiom.Detachable;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
@@ -77,7 +80,8 @@ import rx.functions.Func1;
  * @author isdom
  *
  */
-public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProcessorMXBean, MBeanRegisterAware {
+public class TradeProcessor extends Subscriber<HttpTrade> 
+    implements TradeProcessorMXBean, MBeanRegisterAware, BeanHolderAware  {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(TradeProcessor.class);
@@ -90,6 +94,11 @@ public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProces
             final JSONProvider  jsonProvider) {
         this._registrar = registrar;
         this._jsonProvider = jsonProvider;
+    }
+    
+    @Override
+    public void setBeanHolder(final BeanHolder beanHolder) {
+        this._beanHolder = beanHolder;
     }
     
     public void destroy() {
@@ -111,8 +120,16 @@ public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProces
 
     @Override
     public void onNext(final HttpTrade trade) {
-        trade.inbound().message().subscribe(buildInboundSubscriber(trade, 
-                trade.inbound().messageHolder().httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST)));
+        if ( null != this._beanHolder) {
+            final InboundSpeedController isc = 
+                    _beanHolder.getBean(InboundSpeedController.class);
+            if (null != isc) {
+                isc.applyTo(trade.inbound());
+            }
+        }
+        trade.inbound().message().subscribe(
+            buildInboundSubscriber(trade, 
+            trade.inbound().messageHolder().httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST)));
     }
 
     private Subscriber<HttpObject> buildInboundSubscriber(
@@ -524,6 +541,8 @@ public class TradeProcessor extends Subscriber<HttpTrade> implements TradeProces
             new DefaultHttpDataFactory(false);  // DO NOT use Disk
     private final Registrar<?> _registrar;
     private final JSONProvider _jsonProvider;
+    
+    private BeanHolder _beanHolder;
     
     private String _defaultContentType = APPLICATION_JSON_CHARSET_UTF_8;
     private Map<String, String> _extraHeaders;

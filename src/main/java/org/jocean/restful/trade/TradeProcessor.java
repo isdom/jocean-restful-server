@@ -459,7 +459,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                 return new Action1<Blob>() {
                     @Override
                     public void call(final Blob blob) {
-                        holder.releaseUntil(blob);
+                        holder.releaseReferenceCounted(blob);
                     }};
             }};
     }

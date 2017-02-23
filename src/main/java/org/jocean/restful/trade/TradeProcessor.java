@@ -24,7 +24,6 @@ import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
-import org.jocean.idiom.rx.RxActions;
 import org.jocean.idiom.rx.RxObservables;
 import org.jocean.j2se.jmx.MBeanRegister;
 import org.jocean.j2se.jmx.MBeanRegisterAware;
@@ -72,6 +71,7 @@ import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.util.CharsetUtil;
 import rx.Observable;
 import rx.Subscriber;
+import rx.functions.Action0;
 import rx.functions.Action1;
 import rx.functions.Func0;
 import rx.functions.Func1;
@@ -417,7 +417,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
     
     private BlobSource buildBlobSource(final HttpTrade trade) {
         final ReferenceCountedHolder holder = new ReferenceCountedHolder();
-        trade.addCloseHook(RxActions.<HttpTrade>toAction1(holder.release()));
+        trade.doOnTerminate(holder.release());
         
         return new BlobSource() {
             @Override
@@ -429,12 +429,12 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                         releaseRequestASAP ? trade.inbound().messageHolder() : null);
                 // 设定writeIndex >= 128K 时，即可 尝试对 undecodedChunk 进行 discardReadBytes()
                 asBlob.setDiscardThreshold(128 * 1024);
-                trade.addCloseHook(RxActions.<HttpTrade>toAction1(asBlob.destroy()));
+                trade.doOnTerminate(asBlob.destroy());
                 
                 final AtomicInteger _lastAddedSize = new AtomicInteger(0);
-                trade.addCloseHook(new Action1<HttpTrade>() {
+                trade.doOnTerminate(new Action0() {
                     @Override
-                    public void call(final HttpTrade t) {
+                    public void call() {
                         updateCurrentUndecodedSize(-_lastAddedSize.getAndSet(-1));
                     }});
                 

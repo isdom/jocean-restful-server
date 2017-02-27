@@ -381,7 +381,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
 
                             addExtraHeaders(response);
 
-                            trade.outboundResponse(Observable.<HttpObject>just(response));
+                            trade.outbound().message(Observable.<HttpObject>just(response));
                         }
                     });
                 } catch (Exception e) {
@@ -500,7 +500,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             this._respProcessors.get(respBean.getClass()).call(respBean, response);
         }
         
-        trade.outboundResponse(Observable.<HttpObject>just(response));
+        trade.outbound().message(Observable.<HttpObject>just(response));
 
         return keepAlive;
     }

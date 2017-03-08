@@ -177,9 +177,6 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             }
             
             private void onCompleted4Multipart() {
-//                if (null!=this._receiver) {
-//                    this._receiver.acceptEvent(Events.ON_FILEUPLOAD_COMPLETED);
-//                }
             }
 
             private void onCompleted4Standard() {

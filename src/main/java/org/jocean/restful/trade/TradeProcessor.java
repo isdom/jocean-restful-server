@@ -129,7 +129,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
         }
         trade.inbound().message().subscribe(
             buildInboundSubscriber(trade, 
-            trade.inbound().messageHolder().httpMessageBuilder(RxNettys.BUILD_FULL_REQUEST)));
+            trade.inbound().messageHolder().fullOf(RxNettys.BUILD_FULL_REQUEST)));
     }
 
     private Subscriber<HttpObject> buildInboundSubscriber(

@@ -13,7 +13,7 @@ dependencies {
     compile "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${jacksonVersion}"
     compile "org.springframework:spring-context:${springVersion}"
     compile "com.google.guava:guava:${guavaVersion}"
-    compile 'net.sf.ehcache:ehcache:2.10.3'
+    compile 'net.sf.ehcache:ehcache:2.10.4'
     
     /* jocean */
     compile 'org.jocean:jocean-idiom:0.1.4-SNAPSHOT'
@@ -21,5 +21,5 @@ dependencies {
     compile 'org.jocean:jocean-http:0.0.2-SNAPSHOT'
     compile('org.jocean:jocean-j2se:0.0.4-SNAPSHOT') { transitive = false }
 
-    testCompile 'ch.qos.logback:logback-classic:1.1.7'
+    testCompile 'ch.qos.logback:logback-classic:1.2.2'
 }

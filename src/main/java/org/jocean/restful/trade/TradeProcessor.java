@@ -123,13 +123,14 @@ public class TradeProcessor extends Subscriber<HttpTrade>
         if ( null != this._beanHolder) {
             final InboundSpeedController isc = 
                     _beanHolder.getBean(InboundSpeedController.class);
-            if (null != isc) {
-                isc.applyTo(trade.inbound());
-            }
+            // TBD: replace by new ISC
+//            if (null != isc) {
+//                isc.applyTo(trade.inbound());
+//            }
         }
-        trade.inbound().message().subscribe(
+        trade.inbound().subscribe(
             buildInboundSubscriber(trade, 
-            trade.inbound().messageHolder().fullOf(RxNettys.BUILD_FULL_REQUEST)));
+            trade.inboundHolder().fullOf(RxNettys.BUILD_FULL_REQUEST)));
     }
 
     private Subscriber<HttpObject> buildInboundSubscriber(
@@ -189,7 +190,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
-                                        trade.inbound().message(),
+                                        trade.inbound(),
                                         req, 
                                         contentType,
                                         req.content(), 
@@ -200,7 +201,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                             this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade, 
-                                        trade.inbound().message(),
+                                        trade.inbound(),
                                         req, 
                                         contentType,
                                         req.content(), 
@@ -270,7 +271,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                             this._isRequestHandled = 
                                 createAndInvokeRestfulBusiness(
                                         trade,
-                                        trade.inbound().message(),
+                                        trade.inbound(),
                                         this._request, 
                                         fileUpload.getContentType(),
                                         content, 
@@ -378,7 +379,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
 
                             addExtraHeaders(response);
 
-                            trade.outbound().message(Observable.<HttpObject>just(response));
+                            trade.outbound(Observable.<HttpObject>just(response));
                         }
                     });
                 } catch (Exception e) {
@@ -423,7 +424,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                     final boolean releaseRequestASAP) {
                 final AsBlob asBlob = new AsBlob(contentTypePrefix, 
                         holder, 
-                        releaseRequestASAP ? trade.inbound().messageHolder() : null);
+                        releaseRequestASAP ? trade.inboundHolder() : null);
                 // 设定writeIndex >= 128K 时，即可 尝试对 undecodedChunk 进行 discardReadBytes()
                 asBlob.setDiscardThreshold(128 * 1024);
                 trade.doOnTerminate(asBlob.destroy());
@@ -435,7 +436,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                         updateCurrentUndecodedSize(-_lastAddedSize.getAndSet(-1));
                     }});
                 
-                return trade.inbound().message()
+                return trade.inbound()
                     .doOnNext(new Action1<HttpObject>() {
                         @Override
                         public void call(final HttpObject obj) {
@@ -497,7 +498,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             this._respProcessors.get(respBean.getClass()).call(respBean, response);
         }
         
-        trade.outbound().message(Observable.<HttpObject>just(response));
+        trade.outbound(Observable.<HttpObject>just(response));
 
         return keepAlive;
     }

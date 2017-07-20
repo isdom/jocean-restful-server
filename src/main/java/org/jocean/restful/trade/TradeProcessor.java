@@ -13,9 +13,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jocean.event.api.EventReceiver;
+import org.jocean.http.Inboundable.ReadPolicy;
 import org.jocean.http.server.HttpServerBuilder.HttpTrade;
 import org.jocean.http.util.AsBlob;
-import org.jocean.http.util.InboundSpeedController;
 import org.jocean.http.util.RxNettys;
 import org.jocean.idiom.BeanHolder;
 import org.jocean.idiom.BeanHolderAware;
@@ -121,12 +121,10 @@ public class TradeProcessor extends Subscriber<HttpTrade>
     @Override
     public void onNext(final HttpTrade trade) {
         if ( null != this._beanHolder) {
-            final InboundSpeedController isc = 
-                    _beanHolder.getBean(InboundSpeedController.class);
-            // TBD: replace by new ISC
-//            if (null != isc) {
-//                isc.applyTo(trade.inbound());
-//            }
+            final ReadPolicy policy = _beanHolder.getBean(ReadPolicy.class);
+            if (null != policy) {
+                trade.setReadPolicy(policy);
+            }
         }
         trade.inbound().subscribe(
             buildInboundSubscriber(trade, 

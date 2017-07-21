@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jocean.event.api.EventReceiver;
-import org.jocean.http.Inboundable.ReadPolicy;
+import org.jocean.http.ReadPolicy;
 import org.jocean.http.server.HttpServerBuilder.HttpTrade;
 import org.jocean.http.util.AsBlob;
 import org.jocean.http.util.RxNettys;

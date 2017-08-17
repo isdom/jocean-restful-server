@@ -68,6 +68,10 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
 
 import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.deser.DeserializationProblemHandler;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ArrayListMultimap;
@@ -484,6 +488,15 @@ public class RegistrarImpl implements Registrar<RegistrarImpl>, MBeanRegisterAwa
                     LOG.debug("createObjectBy XML Format: {}", new String(bytes, Charsets.UTF_8));
                 }
                 final XmlMapper mapper = new XmlMapper();
+                mapper.addHandler(new DeserializationProblemHandler() {
+                    @Override
+                    public boolean handleUnknownProperty(final DeserializationContext ctxt, final JsonParser p,
+                            final JsonDeserializer<?> deserializer, final Object beanOrClass, final String propertyName)
+                            throws IOException {
+                        LOG.warn("UnknownProperty [{}], just skip", propertyName);
+                        p.skipChildren();
+                        return true;
+                    }});
                 try {
                     return mapper.readValue(bytes, beanField.getType());
                 } catch (Exception e) {

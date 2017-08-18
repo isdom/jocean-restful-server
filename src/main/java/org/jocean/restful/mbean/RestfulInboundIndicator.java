@@ -28,7 +28,7 @@ public class RestfulInboundIndicator extends InboundIndicator
     @Override
     public void setServerChannel(final ServerChannel serverChannel) {
         super.setServerChannel(serverChannel);
-        this._register.registerMBean("name=inbound,address=" + this.getBindIp().replace(':', '_')
+        this._register.registerMBean("name="+this._mbeanName+",address=" + this.getBindIp().replace(':', '_')
                 +",port=" + this.getPort(), this);
     }
 
@@ -37,6 +37,10 @@ public class RestfulInboundIndicator extends InboundIndicator
         this._register = register;
     }
     
+    public void setMbeanName(final String mbeanName) {
+        this._mbeanName = mbeanName;
+    }
+
     public void setPathPattern(final String pathPattern) {
         this._pathPattern = pathPattern;
     }
@@ -49,6 +53,7 @@ public class RestfulInboundIndicator extends InboundIndicator
         this._priority = priority;
     }
     
+    private String _mbeanName;
     private MBeanRegister _register;
     private String _pathPattern;
     private String _category;

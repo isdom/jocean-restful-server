@@ -7,6 +7,7 @@
     <bean id="httpfeatures" class="java.util.concurrent.CopyOnWriteArrayList" />
 
     <bean id="inboundIndicator" class="org.jocean.restful.mbean.RestfulInboundIndicator">
+        <property name="mbeanName" value="${inbound.mbeanname:inbound}"/>
         <property name="category" value="${inbound.category}"/>
         <property name="priority" value="${inbound.priority:100}"/>
         <property name="pathPattern" value="${inbound.pathpattern}"/>

@@ -20,6 +20,7 @@ import org.jocean.http.util.RxNettys;
 import org.jocean.idiom.BeanHolder;
 import org.jocean.idiom.BeanHolderAware;
 import org.jocean.idiom.Detachable;
+import org.jocean.idiom.DisposableWrapperUtil;
 import org.jocean.idiom.ExceptionUtils;
 import org.jocean.idiom.InterfaceSource;
 import org.jocean.idiom.Pair;
@@ -73,7 +74,6 @@ import rx.Observable;
 import rx.Subscriber;
 import rx.functions.Action0;
 import rx.functions.Action1;
-import rx.functions.Func0;
 import rx.functions.Func1;
 
 /**
@@ -125,14 +125,12 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                 trade.setReadPolicy(policy);
             }
         }
-        trade.inbound().subscribe(
-            buildInboundSubscriber(trade, 
-            trade.inboundHolder().fullOf(RxNettys.BUILD_FULL_REQUEST)));
+        trade.obsrequest().map(DisposableWrapperUtil.unwrap()).subscribe(
+            buildInboundSubscriber(trade));
     }
 
     private Subscriber<HttpObject> buildInboundSubscriber(
-            final HttpTrade trade,
-            final Func0<FullHttpRequest> buildFullReq) {
+            final HttpTrade trade) {
         return new Subscriber<HttpObject>() {
             private final ListMultimap<String,String> _formParameters = ArrayListMultimap.create();
             private Detachable _task = null;
@@ -178,37 +176,25 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             }
 
             private void onCompleted4Standard() {
-                final FullHttpRequest req = buildFullReq.call();
-                if (null!=req) {
+                final FullHttpRequest req = trade.obsrequest().compose(RxNettys.message2fullreq(trade)).toBlocking()
+                        .single().unwrap();
+                if (null != req) {
                     try {
                         final String contentType = req.headers().get(HttpHeaderNames.CONTENT_TYPE);
                         if (isPostWithForm(req)) {
                             final String queryString = toQueryString(req.content());
-                            this._isRequestHandled =
-                                createAndInvokeRestfulBusiness(
-                                        trade, 
-                                        trade.inbound(),
-                                        req, 
-                                        contentType,
-                                        req.content(), 
-                                        null != queryString 
-                                            ? new QueryStringDecoder(queryString, false).parameters()
-                                            : null);
+                            this._isRequestHandled = createAndInvokeRestfulBusiness(trade,
+                                    trade.obsrequest().map(DisposableWrapperUtil.unwrap()), req, contentType,
+                                    req.content(), null != queryString
+                                            ? new QueryStringDecoder(queryString, false).parameters() : null);
                         } else {
-                            this._isRequestHandled =
-                                createAndInvokeRestfulBusiness(
-                                        trade, 
-                                        trade.inbound(),
-                                        req, 
-                                        contentType,
-                                        req.content(), 
-                                        Multimaps.asMap(this._formParameters));
+                            this._isRequestHandled = createAndInvokeRestfulBusiness(trade,
+                                    trade.obsrequest().map(DisposableWrapperUtil.unwrap()), req, contentType,
+                                    req.content(), Multimaps.asMap(this._formParameters));
                         }
                     } catch (Exception e) {
                         LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
                                 ExceptionUtils.exception2detail(e));
-                    } finally {
-                        req.release();
                     }
                 }
             }
@@ -268,7 +254,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                             this._isRequestHandled = 
                                 createAndInvokeRestfulBusiness(
                                         trade,
-                                        trade.inbound(),
+                                        trade.obsrequest().map(DisposableWrapperUtil.unwrap()),
                                         this._request, 
                                         fileUpload.getContentType(),
                                         content, 
@@ -421,7 +407,8 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                     final boolean releaseRequestASAP) {
                 final AsBlob asBlob = new AsBlob(contentTypePrefix, 
                         holder, 
-                        releaseRequestASAP ? trade.inboundHolder() : null);
+                        // disable releaseRequestASAP feature
+                        /*releaseRequestASAP ? trade.inboundHolder() : */ null);
                 // 设定writeIndex >= 128K 时，即可 尝试对 undecodedChunk 进行 discardReadBytes()
                 asBlob.setDiscardThreshold(128 * 1024);
                 trade.doOnTerminate(asBlob.destroy());
@@ -433,7 +420,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                         updateCurrentUndecodedSize(-_lastAddedSize.getAndSet(-1));
                     }});
                 
-                return trade.inbound()
+                return trade.obsrequest().map(DisposableWrapperUtil.unwrap())
                     .doOnNext(new Action1<HttpObject>() {
                         @Override
                         public void call(final HttpObject obj) {

@@ -125,7 +125,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                 trade.setReadPolicy(policy);
             }
         }
-        trade.obsrequest().map(DisposableWrapperUtil.unwrap()).subscribe(
+        trade.inbound().map(DisposableWrapperUtil.unwrap()).subscribe(
             buildInboundSubscriber(trade));
     }
 
@@ -176,7 +176,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             }
 
             private void onCompleted4Standard() {
-                final FullHttpRequest req = trade.obsrequest().compose(RxNettys.message2fullreq(trade)).toBlocking()
+                final FullHttpRequest req = trade.inbound().compose(RxNettys.message2fullreq(trade)).toBlocking()
                         .single().unwrap();
                 if (null != req) {
                     try {
@@ -184,12 +184,12 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                         if (isPostWithForm(req)) {
                             final String queryString = toQueryString(req.content());
                             this._isRequestHandled = createAndInvokeRestfulBusiness(trade,
-                                    trade.obsrequest().map(DisposableWrapperUtil.unwrap()), req, contentType,
+                                    trade.inbound().map(DisposableWrapperUtil.unwrap()), req, contentType,
                                     req.content(), null != queryString
                                             ? new QueryStringDecoder(queryString, false).parameters() : null);
                         } else {
                             this._isRequestHandled = createAndInvokeRestfulBusiness(trade,
-                                    trade.obsrequest().map(DisposableWrapperUtil.unwrap()), req, contentType,
+                                    trade.inbound().map(DisposableWrapperUtil.unwrap()), req, contentType,
                                     req.content(), Multimaps.asMap(this._formParameters));
                         }
                     } catch (Exception e) {
@@ -254,7 +254,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                             this._isRequestHandled = 
                                 createAndInvokeRestfulBusiness(
                                         trade,
-                                        trade.obsrequest().map(DisposableWrapperUtil.unwrap()),
+                                        trade.inbound().map(DisposableWrapperUtil.unwrap()),
                                         this._request, 
                                         fileUpload.getContentType(),
                                         content, 
@@ -420,7 +420,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                         updateCurrentUndecodedSize(-_lastAddedSize.getAndSet(-1));
                     }});
                 
-                return trade.obsrequest().map(DisposableWrapperUtil.unwrap())
+                return trade.inbound().map(DisposableWrapperUtil.unwrap())
                     .doOnNext(new Action1<HttpObject>() {
                         @Override
                         public void call(final HttpObject obj) {

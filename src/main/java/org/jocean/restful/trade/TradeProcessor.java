@@ -405,10 +405,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             public Observable<? extends Blob> toBlobs(
                     final String contentTypePrefix,
                     final boolean releaseRequestASAP) {
-                final AsBlob asBlob = new AsBlob(contentTypePrefix, 
-                        holder, 
-                        // disable releaseRequestASAP feature
-                        /*releaseRequestASAP ? trade.inboundHolder() : */ null);
+                final AsBlob asBlob = new AsBlob(contentTypePrefix, holder);
                 // 设定writeIndex >= 128K 时，即可 尝试对 undecodedChunk 进行 discardReadBytes()
                 asBlob.setDiscardThreshold(128 * 1024);
                 trade.doOnTerminate(asBlob.destroy());

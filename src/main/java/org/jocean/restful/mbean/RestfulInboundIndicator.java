@@ -1,11 +1,11 @@
 package org.jocean.restful.mbean;
 
-import io.netty.channel.ServerChannel;
-
 import org.jocean.http.server.mbean.InboundIndicator;
 import org.jocean.http.util.Nettys.ServerChannelAware;
-import org.jocean.j2se.jmx.MBeanRegister;
-import org.jocean.j2se.jmx.MBeanRegisterAware;
+import org.jocean.idiom.jmx.MBeanRegister;
+import org.jocean.idiom.jmx.MBeanRegisterAware;
+
+import io.netty.channel.ServerChannel;
 
 public class RestfulInboundIndicator extends InboundIndicator 
     implements RestfulInboundMXBean, ServerChannelAware, MBeanRegisterAware {

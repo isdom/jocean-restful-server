@@ -1,5 +1,5 @@
 /**
- * 
+ *
  */
 package org.jocean.restful.trade;
 
@@ -13,9 +13,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jocean.event.api.EventReceiver;
-import org.jocean.http.ReadPolicy;
 import org.jocean.http.server.HttpServerBuilder.HttpTrade;
-import org.jocean.http.util.AsBlob;
 import org.jocean.http.util.RxNettys;
 import org.jocean.idiom.BeanHolder;
 import org.jocean.idiom.BeanHolderAware;
@@ -27,12 +25,7 @@ import org.jocean.idiom.Pair;
 import org.jocean.idiom.SimpleCache;
 import org.jocean.idiom.jmx.MBeanRegister;
 import org.jocean.idiom.jmx.MBeanRegisterAware;
-import org.jocean.idiom.rx.RxObservables;
 import org.jocean.json.JSONProvider;
-import org.jocean.netty.BlobRepo.Blob;
-import org.jocean.netty.util.ReferenceCountedHolder;
-import org.jocean.restful.BlobSource;
-import org.jocean.restful.BlobSourceAware;
 import org.jocean.restful.OutputReactor;
 import org.jocean.restful.OutputSource;
 import org.jocean.restful.Registrar;
@@ -72,44 +65,42 @@ import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.util.CharsetUtil;
 import rx.Observable;
 import rx.Subscriber;
-import rx.functions.Action0;
-import rx.functions.Action1;
 import rx.functions.Func1;
 
 /**
  * @author isdom
  *
  */
-public class TradeProcessor extends Subscriber<HttpTrade> 
+public class TradeProcessor extends Subscriber<HttpTrade>
     implements TradeProcessorMXBean, MBeanRegisterAware, BeanHolderAware  {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(TradeProcessor.class);
 
-    private static final String APPLICATION_JSON_CHARSET_UTF_8 = 
+    private static final String APPLICATION_JSON_CHARSET_UTF_8 =
             "application/json; charset=UTF-8";
-    
+
     public TradeProcessor(
             final Registrar<?>  registrar,
             final JSONProvider  jsonProvider) {
         this._registrar = registrar;
         this._jsonProvider = jsonProvider;
     }
-    
+
     @Override
     public void setBeanHolder(final BeanHolder beanHolder) {
         this._beanHolder = beanHolder;
     }
-    
+
     public void destroy() {
         //  clean up all leak HttpDatas
         HTTP_DATA_FACTORY.cleanAllHttpData();
     }
-    
+
     @Override
     public void onCompleted() {
         // TODO Auto-generated method stub
-        
+
     }
 
     @Override
@@ -120,10 +111,10 @@ public class TradeProcessor extends Subscriber<HttpTrade>
     @Override
     public void onNext(final HttpTrade trade) {
         if ( null != this._beanHolder) {
-            final ReadPolicy policy = _beanHolder.getBean(ReadPolicy.class);
-            if (null != policy) {
-                trade.setReadPolicy(policy);
-            }
+//            final ReadPolicy policy = _beanHolder.getBean(ReadPolicy.class);
+//            if (null != policy) {
+//                trade.setReadPolicy(policy);
+//            }
         }
         trade.inbound().map(DisposableWrapperUtil.unwrap()).subscribe(
             buildInboundSubscriber(trade));
@@ -140,7 +131,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             @SuppressWarnings("unused")
             private boolean _isRequestHandled = false;
             private HttpRequest _request;
-          
+
             private void destructor() {
                 destroyPostDecoder();
             }
@@ -153,7 +144,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                     this._postDecoder = null;
                 }
             }
-            
+
             @Override
             public void onCompleted() {
                 if (this._isMultipart) {
@@ -167,11 +158,11 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             @Override
             public void onError(final Throwable e) {
                 safeDetachTask();
-                LOG.warn("SOURCE_CANCELED\nfor cause:[{}]", 
+                LOG.warn("SOURCE_CANCELED\nfor cause:[{}]",
                         ExceptionUtils.exception2detail(e));
                 destructor();
             }
-            
+
             private void onCompleted4Multipart() {
             }
 
@@ -192,13 +183,13 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                                     trade.inbound().map(DisposableWrapperUtil.unwrap()), req, contentType,
                                     req.content(), Multimaps.asMap(this._formParameters));
                         }
-                    } catch (Exception e) {
+                    } catch (final Exception e) {
                         LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
                                 ExceptionUtils.exception2detail(e));
                     }
                 }
             }
-            
+
             @Override
             public void onNext(final HttpObject msg) {
                 if (msg instanceof HttpRequest) {
@@ -217,11 +208,11 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                 }
             }
 
-            private void onNext4Multipart(HttpContent content) {
+            private void onNext4Multipart(final HttpContent content) {
                 if (null!=this._postDecoder) {
                     try {
                         this._postDecoder.offer(content);
-                    } catch (ErrorDataDecoderException e) {
+                    } catch (final ErrorDataDecoderException e) {
                         //  TODO
                     }
                     try {
@@ -238,12 +229,12 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                                 }
                             }
                         }
-                    } catch (EndOfDataDecoderException e) {
+                    } catch (final EndOfDataDecoderException e) {
                         //  TODO
                     }
                 }
             }
-            
+
             private boolean processHttpData(final InterfaceHttpData data) {
                 if (data.getHttpDataType().equals(
                         InterfaceHttpData.HttpDataType.FileUpload)) {
@@ -251,15 +242,15 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                     if (null==this._receiver) {
                         final ByteBuf content = getContent(fileUpload);
                         try {
-                            this._isRequestHandled = 
+                            this._isRequestHandled =
                                 createAndInvokeRestfulBusiness(
                                         trade,
                                         trade.inbound().map(DisposableWrapperUtil.unwrap()),
-                                        this._request, 
+                                        this._request,
                                         fileUpload.getContentType(),
-                                        content, 
+                                        content,
                                         Multimaps.asMap(this._formParameters));
-                        } catch (Exception e) {
+                        } catch (final Exception e) {
                             LOG.warn("exception when createAndInvokeRestfulBusiness, detail:{}",
                                     ExceptionUtils.exception2detail(e));
                         }
@@ -278,8 +269,8 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                     final Attribute attribute = (Attribute) data;
                     try {
                         this._formParameters.put(attribute.getName(), attribute.getValue());
-                    } catch (IOException e) {
-                        LOG.warn("exception when add form parameters for attr({}), detail: {}", 
+                    } catch (final IOException e) {
+                        LOG.warn("exception when add form parameters for attr({}), detail: {}",
                                 attribute, ExceptionUtils.exception2detail(e));
                     }
                     return true;
@@ -288,9 +279,9 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                     return false;
                 }
             }
-            
+
             private ByteBuf getContent(final FileUpload fileUpload) {
-                return isJson(fileUpload) 
+                return isJson(fileUpload)
                         ? fileUpload.content()
                         : Unpooled.EMPTY_BUFFER;
             }
@@ -298,14 +289,14 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             private boolean isJson(final FileUpload fileUpload) {
                 return fileUpload.getContentType().startsWith("application/json");
             }
-            
+
             private boolean createAndInvokeRestfulBusiness(
                     final HttpTrade trade,
-                    final Observable<? extends HttpObject> cached, 
-                    final HttpRequest request, 
+                    final Observable<? extends HttpObject> cached,
+                    final HttpRequest request,
                     final String  contentType,
-                    final ByteBuf content, 
-                    final Map<String, List<String>> formParameters) 
+                    final ByteBuf content,
+                    final Map<String, List<String>> formParameters)
                     throws Exception {
                 final Pair<Object, String> flowAndEvent =
                         _registrar.buildFlowMatch(request, contentType, content, formParameters);
@@ -332,7 +323,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                         @Override
                         public void output(final Object representation, final String outerName) {
                             safeDetachTask();
-                            final String responseJson = 
+                            final String responseJson =
                                     outerName + "(" + _jsonProvider.toJSONString(representation) + ")";
                             LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback resp:{}({})", request, outerName, responseJson);
                             writeAndFlushResponse(trade, request, representation, responseJson, _defaultContentType);
@@ -343,15 +334,15 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                                 final Object representation,
                                 final String contentType) {
                             safeDetachTask();
-                            LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback resp with contentType({}):{}", 
+                            LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback resp with contentType({}):{}",
                                     request, contentType, representation);
                             writeAndFlushResponse(trade, request, representation, representation.toString(), contentType);
                         }
-                        
+
                         @Override
                         public void outputAsHttpResponse(final FullHttpResponse response) {
                             safeDetachTask();
-                            LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback http-resp:{}", 
+                            LOG.info("RESTFUL_Trade_Summary: recv req:{}, and sendback http-resp:{}",
                                     request, response);
                             final boolean keepAlive = HttpUtil.isKeepAlive(request);
                             if (keepAlive) {
@@ -365,28 +356,25 @@ public class TradeProcessor extends Subscriber<HttpTrade>
                             trade.outbound(Observable.<HttpObject>just(response));
                         }
                     });
-                } catch (Exception e) {
+                } catch (final Exception e) {
                     LOG.warn("exception when call flow({})'s setOutputReactor, detail:{}",
                             flow, ExceptionUtils.exception2detail(e));
                 }
                 if (flow instanceof TradeInboundAware) {
                     ((TradeInboundAware)flow).setTradeInbound(cached);
                 }
-                if (flow instanceof BlobSourceAware) {
-                    ((BlobSourceAware)flow).setBlobSource(buildBlobSource(trade));
-                }
-                
+
                 this._receiver = flow.queryInterfaceInstance(EventReceiver.class);
                 this._receiver.acceptEvent(flowAndEvent.getSecond());
 
                 return true;
             }
-            
+
             private void safeDetachTask() {
                 if (null != this._task) {
                     try {
                         this._task.detach();
-                    } catch (Exception e) {
+                    } catch (final Exception e) {
                         LOG.warn("exception when detach current flow, detail:{}",
                                 ExceptionUtils.exception2detail(e));
                     }
@@ -395,65 +383,18 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             }
         };
     }
-    
-    private BlobSource buildBlobSource(final HttpTrade trade) {
-        final ReferenceCountedHolder holder = new ReferenceCountedHolder();
-        trade.doOnTerminate(holder.release());
-        
-        return new BlobSource() {
-            @Override
-            public Observable<? extends Blob> toBlobs(
-                    final String contentTypePrefix,
-                    final boolean releaseRequestASAP) {
-                final AsBlob asBlob = new AsBlob(contentTypePrefix, holder);
-                // 设定writeIndex >= 128K 时，即可 尝试对 undecodedChunk 进行 discardReadBytes()
-                asBlob.setDiscardThreshold(128 * 1024);
-                trade.doOnTerminate(asBlob.destroy());
-                
-                final AtomicInteger _lastAddedSize = new AtomicInteger(0);
-                trade.doOnTerminate(new Action0() {
-                    @Override
-                    public void call() {
-                        updateCurrentUndecodedSize(-_lastAddedSize.getAndSet(-1));
-                    }});
-                
-                return trade.inbound().map(DisposableWrapperUtil.unwrap())
-                    .doOnNext(new Action1<HttpObject>() {
-                        @Override
-                        public void call(final HttpObject obj) {
-                            final int currentsize = asBlob.currentUndecodedSize();
-                            final int lastsize = _lastAddedSize.getAndSet(currentsize);
-                            if (lastsize >= 0) { // -1 means trade has closed
-                                updateCurrentUndecodedSize(currentsize - lastsize);
-                            } else {
-                                //  TODO? set lastsize (== -1) back to _lastAddedSize ?
-                            }
-                        }})
-                    .flatMap(asBlob)
-                    .compose(RxObservables.<Blob>ensureSubscribeAtmostOnce());
-            }
-
-            @Override
-            public Action1<Blob> releaseBlob() {
-                return new Action1<Blob>() {
-                    @Override
-                    public void call(final Blob blob) {
-                        holder.releaseReferenceCounted(blob);
-                    }};
-            }};
-    }
 
     private boolean writeAndFlushResponse(
-            final HttpTrade trade, 
-            final HttpRequest request, 
-            final Object respBean, 
-            final String content, 
+            final HttpTrade trade,
+            final HttpRequest request,
+            final Object respBean,
+            final String content,
             final String contentType) {
         // Decide whether to close the connection or not.
         final boolean keepAlive = HttpUtil.isKeepAlive(request);
         // Build the response object.
         final FullHttpResponse response = new DefaultFullHttpResponse(
-                request.protocolVersion(), 
+                request.protocolVersion(),
                 (null != content ? OK : NOT_FOUND),
                 (null != content ? Unpooled.copiedBuffer(content, CharsetUtil.UTF_8) : Unpooled.buffer(0)));
 
@@ -463,7 +404,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
 
         // Add 'Content-Length' header only for a keep-alive connection.
         response.headers().set(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
-        
+
         if (keepAlive) {
             // Add keep alive header as per:
             // - http://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01.html#Connection
@@ -474,11 +415,11 @@ public class TradeProcessor extends Subscriber<HttpTrade>
         response.headers().set(HttpHeaderNames.PRAGMA, HttpHeaderValues.NO_CACHE);
 
         addExtraHeaders(response);
-        
+
         if (null != respBean) {
             this._respProcessors.get(respBean.getClass()).call(respBean, response);
         }
-        
+
         trade.outbound(Observable.<HttpObject>just(response));
 
         return keepAlive;
@@ -486,12 +427,12 @@ public class TradeProcessor extends Subscriber<HttpTrade>
 
     private void addExtraHeaders(final FullHttpResponse response) {
         if (null!=this._extraHeaders) {
-            for (Map.Entry<String, String> entry : this._extraHeaders.entrySet()) {
+            for (final Map.Entry<String, String> entry : this._extraHeaders.entrySet()) {
                 response.headers().set(entry.getKey(), entry.getValue());
             }
         }
     }
-    
+
     private static String toQueryString(final ByteBuf content)
             throws UnsupportedEncodingException, IOException {
         if (content instanceof EmptyByteBuf) {
@@ -511,7 +452,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
     public void setDefaultContentType(final String defaultContentType) {
         this._defaultContentType = defaultContentType;
     }
-    
+
     public void setExtraHeaders(final Map<String, String> extraHeaders) {
         this._extraHeaders = extraHeaders;
     }
@@ -520,9 +461,9 @@ public class TradeProcessor extends Subscriber<HttpTrade>
             new DefaultHttpDataFactory(false);  // DO NOT use Disk
     private final Registrar<?> _registrar;
     private final JSONProvider _jsonProvider;
-    
+
     private BeanHolder _beanHolder;
-    
+
     private String _defaultContentType = APPLICATION_JSON_CHARSET_UTF_8;
     private Map<String, String> _extraHeaders;
     private final SimpleCache<Class<?>, ResponseProcessor> _respProcessors
@@ -541,12 +482,12 @@ public class TradeProcessor extends Subscriber<HttpTrade>
     public int getCurrentUndecodedSize() {
         return this._currentUndecodedSize.get();
     }
-    
+
     @Override
     public int getPeakUndecodedSize() {
         return this._peakUndecodedSize.get();
     }
-    
+
     private final AtomicInteger  _currentUndecodedSize = new AtomicInteger(0);
     private final AtomicInteger  _peakUndecodedSize = new AtomicInteger(0);
 
@@ -554,7 +495,7 @@ public class TradeProcessor extends Subscriber<HttpTrade>
         final int current = this._currentUndecodedSize.addAndGet(delta);
         if (delta > 0) {
             boolean updated = false;
-            
+
             do {
                 // try to update peak memory value
                 final int peak = this._peakUndecodedSize.get();
